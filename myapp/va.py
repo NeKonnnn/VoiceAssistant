@@ -13,7 +13,6 @@ from sklearn.linear_model import LogisticRegression
 import words
 from commands import *
 from weather import *
-import steam
 
 # Создаем объект очереди
 q = queue.Queue()
