@@ -12,6 +12,8 @@ from sklearn.linear_model import LogisticRegression
 #import наших модулей
 import words
 from commands import *
+from weather import *
+import steam
 
 # Создаем объект очереди
 q = queue.Queue()
@@ -37,9 +39,15 @@ def recognize(data, vectorizer, clf):
     
     func_name = answer.split()[0]
     voice.speaker(answer.replace(func_name, ''))
-    exec(func_name + '()')
+    if func_name == "get_city":
+        city = eval(func_name + '()')  # получаем название города от функции get_city
+        weather_check(city)  # передаем название города в функцию weather_check
+    else:
+        exec(func_name + '()')  # для всех остальных функций просто их выполняем
     
 def main():
+    #Приветствие пользователя при запуске
+    voice.speaker("Здравствуйте, сэр. Чем могу помочь?")
     
     #Обучение матрицы на data_set модели
     vectorizer = CountVectorizer()
