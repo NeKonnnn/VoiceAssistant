@@ -59,6 +59,6 @@ def get_city():
     city = listen_to_city()
     return city
 
-if __name__ == '__main__':
+def get_weather():
     city_input = get_city()
     weather_check(f'{city_input} погода')

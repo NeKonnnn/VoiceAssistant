@@ -11,12 +11,12 @@ import json
 import voice
  
     
-# def valheim():
-#     #Указываем путь с игрой вальхейм
-#     try:
-#         subprocess.Popen(r'E:\Programms\steam\steamapps\common\Valheim\valheim.exe')
-#     except:
-#         voice.speaker('Путь к файлу не найден, проверьте, правильный ли он')
+def valheim():
+    #Указываем путь с игрой вальхейм
+    try:
+        subprocess.Popen(r'E:\Programms\steam\steamapps\common\Valheim\valheim.exe')
+    except:
+        voice.speaker('Путь к файлу не найден, проверьте, правильный ли он')
     
 def steam():
     #Указываем путь до стим
@@ -28,6 +28,9 @@ def steam():
 def browser():
     #Открывает браузер заданнный по уполчанию в системе с url указанным здесь
     webbrowser.open('https://google.com', new=2)
+    
+def youtube():
+    webbrowser.open('https://www.youtube.com/', new=2)
     
 # def weather(city):
 #     try:
