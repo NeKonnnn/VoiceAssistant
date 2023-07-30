@@ -8,7 +8,7 @@ import vosk
 import pyaudio
 import json
 
-import voice
+import voices
  
     
 def valheim():
@@ -16,14 +16,14 @@ def valheim():
     try:
         subprocess.Popen(r'E:\Programms\steam\steamapps\common\Valheim\valheim.exe')
     except:
-        voice.speaker('Путь к файлу не найден, проверьте, правильный ли он')
+        voices.speaker('Путь к файлу не найден, проверьте, правильный ли он')
     
 def steam():
     #Указываем путь до стим
     try:
         subprocess.Popen(r'E:\Programms\steam\steam.exe')
     except:
-        voice.speaker('Путь к файлу не найден, проверьте, правильный ли он')
+        voices.speaker('Путь к файлу не найден, проверьте, правильный ли он')
         
 def browser():
     #Открывает браузер заданнный по уполчанию в системе с url указанным здесь
