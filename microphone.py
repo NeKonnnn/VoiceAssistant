@@ -11,13 +11,14 @@ import vosk                 #pip install vosk
 #import кастомных (наших) либ
 import words
 from commands.main_commands import *
-from commands.weather import *             
-import voices
+from commands.weather import *    
+from commands.timer import *         
+import voice
 import chatGPT
 
 q = queue.Queue()
 
-model = vosk.Model('vosk_small')        #голосовую модель vosk нужно поместить в папку с файлами проекта
+model = vosk.Model('model_small')        #голосовую модель vosk нужно поместить в папку с файлами проекта
                                         #https://alphacephei.com/vosk/
                                         #https://alphacephei.com/vosk/models
 try:
@@ -25,7 +26,7 @@ try:
                                 #или -> sd.default.device = 1, 3 или python -m sounddevice просмотр 
     samplerate = int(sd.query_devices(device[0], 'input')['default_samplerate'])  #получаем частоту микрофона
 except:
-    voices.speaker_silero('Включи микрофон!')
+    voice.speaker_silero('Включи микрофон!')
     sys.exit(1)
 
 def callback(indata, frames, time, status):
@@ -44,7 +45,7 @@ def recognize(data, vectorizer, clf):
     if not trg:
         if not int(os.getenv("CHATGPT")):
             return
-        voices.speaker_gtts(chat.start_dialogue(data))
+        voice.speaker_gtts(chatGPT.start_dialogue(data))
         return
     #если была фраза обращения к ассистенту
     #удаляем из команды имя асистента
@@ -69,20 +70,25 @@ def recognize(data, vectorizer, clf):
     if max_probability >= threshold:
         answer = clf.classes_[predicted_probabilities[0].argmax()]
     else:
-        voices.speaker_silero("Команда не распознана")
+        voice.speaker_silero("Команда не распознана")
         return
     
 
     #получение имени функции из ответа из data_set
     func_name = answer.split()[0]
-
-    #озвучка ответа из модели data_set
-    voices.speaker_silero(answer.replace(func_name, ''))
-
-    #запуск функции из skills
-    exec('commands.' + func_name + '()')
+    
+    #запуск функции из commands
+    if func_name == "get_city":
+        get_weather()  # вызываем новую функцию get_weather
+    else:
+        #озвучка ответа из модели data_set
+        response = answer.replace(func_name, '').strip()
+        voice.speaker_silero(response)
+        exec(func_name + '()')  # для всех остальных функций просто их выполняем
 
 def recognize_wheel():
+    #Приветствие пользователя при запуске
+    voice.speaker_silero("Здравствуйте, сэр. Чем могу помочь?")
     print('Слушаем')
     '''
     Обучаем матрицу ИИ для распознавания команд ассистентом

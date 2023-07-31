@@ -24,10 +24,6 @@ class Application(tk.Tk):
         self.geometry('+{}+{}'.format(self.winfo_screenwidth()-self.winfo_width(),
                                self.winfo_screenheight()-100))
         
-        #запуск прослушки микрофона(аппаратной части ассистента)
-        # self.run_assistant()
-        #запуск функции постоянной проверки значения переменной окружения
-        #для обновления виджета, если есть активный диалог с gpt
         self.check_env_vars()
 
     def create_widgets(self):
@@ -39,11 +35,11 @@ class Application(tk.Tk):
         self.gpt_label.grid(column=1, row=0, ipadx=0, ipady=0, padx=0, pady=0)
         self.gpt_label.bind("<Button-1>", self.run_gpt)
 
-        self.gpt_clear_label = ttk.Label(self, image=self.refresh_img, background='black')
+        self.gpt_clear_label = ttk.Label(self, image=self.refresh_img_frames[0], background='black')
         self.gpt_clear_label.grid(column=2, row=0, ipadx=0, ipady=0, padx=0, pady=0)
         self.gpt_clear_label.bind("<Button-1>", self.clear_gpt)
 
-        self.exit_label = ttk.Label(self, image=self.exit_img, background='black')
+        self.exit_label = ttk.Label(self, image=self.exit_img_frames[0], background='black')
         self.exit_label.grid(column=3, row=0, ipadx=0, ipady=0, padx=0, pady=0)
         self.exit_label.bind("<Button-1>", self.exit)
     
@@ -55,22 +51,17 @@ class Application(tk.Tk):
         return frames
 
     def prepare_img(self):
-        
-        #РАСКОММЕНТИТЬ КОГДА БУДУТ ГИФКИ!
-        # image = Image.open("images/microphone.gif")
-        # self.assistant_img_frames = self.read_gif_frames(image)
+        image = Image.open("icons/microphone.gif")
+        self.assistant_img_frames = self.read_gif_frames(image)
 
-        # image = Image.open("images/chatgpt.gif")
-        # self.gpt_img_frames = self.read_gif_frames(image)
-        
-        self.microphone = tk.PhotoImage(file="images/microphone.png")
-        
-        self.gpt_img = tk.PhotoImage(file="images/chatgpt.png")
+        image = Image.open("icons/chatgpt.gif")
+        self.gpt_img_frames = self.read_gif_frames(image)
 
-        self.exit_img = tk.PhotoImage(file="images/exit.png")
+        image = Image.open("icons/exit.gif")
+        self.exit_img_frames = self.read_gif_frames(image)
 
-        self.refresh_img = tk.PhotoImage(file="images/refresh.png")
-        # self.refresh2_img = tk.PhotoImage(file="images/refresh.png")
+        image = Image.open("icons/refresh.gif")
+        self.refresh_img_frames = self.read_gif_frames(image)
 
 
     def animate_mic(self, frame_index=0):
@@ -82,6 +73,16 @@ class Application(tk.Tk):
         self.gpt_label.configure(image=self.gpt_img_frames[frame_index])
         self.wheel_gpt_animation = self.after(100, self.animate_gpt,
                                               (frame_index + 1) % len(self.gpt_img_frames))
+
+    def animate_exit(self, frame_index=0):
+        self.exit_label.configure(image=self.exit_img_frames[frame_index])
+        self.wheel_exit_animation = self.after(100, self.animate_exit,
+                                              (frame_index + 1) % len(self.exit_img_frames))
+
+    def animate_refresh(self, frame_index=0):
+        self.gpt_clear_label.configure(image=self.refresh_img_frames[frame_index])
+        self.wheel_refresh_animation = self.after(100, self.animate_refresh,
+                                              (frame_index + 1) % len(self.refresh_img_frames))
         
     def stop_mic_animation(self):
         if self.wheel_mic_animation is not None:
@@ -92,6 +93,16 @@ class Application(tk.Tk):
         if self.wheel_gpt_animation is not None:
             self.after_cancel(self.wheel_gpt_animation)
             self.wheel_gpt_animation = None
+
+    def stop_exit_animation(self):
+        if self.wheel_exit_animation is not None:
+            self.after_cancel(self.wheel_exit_animation)
+            self.wheel_exit_animation = None
+
+    def stop_refresh_animation(self):
+        if self.wheel_refresh_animation is not None:
+            self.after_cancel(self.wheel_refresh_animation)
+            self.wheel_refresh_animation = None
         
     def run_assistant(self, event=None):
         if int(os.getenv('MIC')):
@@ -104,6 +115,12 @@ class Application(tk.Tk):
                 os.environ.update(CHATGPT='0')
                 self.stop_gpt_animation()
                 self.gpt_label['image'] = self.gpt_img_frames[0]
+
+                self.stop_exit_animation()
+                self.exit_label['image'] = self.exit_img_frames[0]
+
+                self.stop_refresh_animation()
+                self.gpt_clear_label['image'] = self.refresh_img_frames[0]
             
         else:
             os.environ.update(MIC='1')
@@ -118,7 +135,7 @@ class Application(tk.Tk):
         '''
         dialogue_status = os.environ.get('NEW_DIALOGUE')
         if not int(dialogue_status):
-            self.gpt_clear_label['image'] = self.refresh2_img
+            self.gpt_clear_label['image'] = self.refresh_img_frames[0]
 
         self.after(5000, self.check_env_vars)
 
@@ -129,6 +146,12 @@ class Application(tk.Tk):
             os.environ.update(CHATGPT='0')
             self.stop_gpt_animation()
             self.gpt_label['image'] = self.gpt_img_frames[0]
+
+            self.stop_exit_animation()
+            self.exit_label['image'] = self.exit_img_frames[0]
+
+            self.stop_refresh_animation()
+            self.gpt_clear_label['image'] = self.refresh_img_frames[0]
 
         elif not int(os.getenv('MIC')):
             return
@@ -141,7 +164,7 @@ class Application(tk.Tk):
     def clear_gpt(self, event):
         new_dialogue()
         os.environ.update(NEW_DIALOGUE='1')
-        self.gpt_clear_label['image'] = self.refresh_img
+        self.gpt_clear_label['image'] = self.refresh_img_frames[0]
 
 
     def exit(self, event):

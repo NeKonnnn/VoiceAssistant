@@ -1,13 +1,19 @@
-
 import requests
 import subprocess
 from bs4 import BeautifulSoup
 import vosk
 import pyaudio
 import json
+from num2words import num2words
+import re
 
 import voice
 
+def time_to_words(time_string):
+    hours, minutes = map(int, time_string.split(':'))
+    hours_in_words = num2words(hours, lang='ru')
+    minutes_in_words = num2words(minutes, lang='ru')
+    return f"{hours_in_words} часов {minutes_in_words} минут"
 
 def weather_check(city):
     headers = {
@@ -28,13 +34,21 @@ def weather_check(city):
         weather = soup.select('#wob_tm')
 
         if time and precipitation and weather:  
-            voice.speaker(f'''День недели и время: {time[0].getText().strip()}
+            # Получаем температуру и преобразуем её в слова
+            temperature = weather[0].getText().strip()
+            temperature_number = re.findall(r'\d+', temperature)
+            if temperature_number:
+                temperature_word = num2words(int(temperature_number[0]), lang='ru')
+            else:
+                temperature_word = temperature
+
+            voice.speaker_silero(f'''День недели и время: {time[0].getText().strip()}
             Информация об осадках: {precipitation[0].getText().strip()}
-            Температура воздуха: {weather[0].getText().strip()}°''')
+            Температура воздуха: {temperature_word} градусов''')
         else:
-            voice.speaker("Не удалось получить данные о погоде.")
+            voice.speaker_silero("Не удалось получить данные о погоде.")
     except Exception as e:
-        voice.speaker(f'Произошла ошибка при попытке запроса к ресурсу API. Ошибка: {e}')
+        voice.speaker_silero(f'Произошла ошибка при попытке запроса к ресурсу API. Ошибка: {e}')
 
 def listen_to_city():
     model = vosk.Model("model_small")
@@ -55,7 +69,7 @@ def listen_to_city():
                 return res_dict['text']
 
 def get_city():
-    voice.speaker("Пожалуйста, назовите город, для которого вы хотите узнать погоду.")
+    voice.speaker_silero("Пожалуйста, назовите город, для которого вы хотите узнать погоду.")
     city = listen_to_city()
     return city
 

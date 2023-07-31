@@ -123,7 +123,7 @@ def start_dialogue(text):
 
             os.environ.update(NEW_DIALOGUE='0')
 
-        openai.api_key = os.getenv('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')
+        openai.api_key = os.getenv('OPENAI_API_KEY')
         
         #добавляем наш запрос в диалог
         messages.append({'role': 'user', 'content': text})
