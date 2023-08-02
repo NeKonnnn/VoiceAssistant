@@ -49,11 +49,15 @@ en_speaker = 'en_6' # от 0 до 117
 
 
 def speaker_silero(text):
-    audio = model_ru.apply_tts(text=text,
-                                speaker=speaker,
-                                sample_rate=sample_rate)
+    try:
+        audio = model_ru.apply_tts(text=text,
+                                    speaker=speaker,
+                                    sample_rate=sample_rate)
 
-    sd.play(audio, blocking=True)
+        sd.play(audio, blocking=True)
+    except ValueError:
+        raise
+    
     
 
 # speaker_silero('привет')

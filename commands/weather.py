@@ -76,3 +76,5 @@ def get_city():
 def get_weather():
     city_input = get_city()
     weather_check(f'{city_input} погода')
+    
+    

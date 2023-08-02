@@ -11,8 +11,9 @@ import vosk                 #pip install vosk
 #import кастомных (наших) либ
 import words
 from commands.main_commands import *
-from commands.weather import *    
-from commands.timer import *         
+from commands.weather import *
+from commands.pc_work.volume import *    
+# from commands.timer import *         
 import voice
 import chatGPT
 
@@ -80,11 +81,15 @@ def recognize(data, vectorizer, clf):
     #запуск функции из commands
     if func_name == "get_city":
         get_weather()  # вызываем новую функцию get_weather
+    # elif func_name == "get_volume":  # добавьте это условие
+    #     set_volume()  # вызовите функцию set_volume
     else:
-        #озвучка ответа из модели data_set
+    # озвучка ответа из модели data_set
         response = answer.replace(func_name, '').strip()
-        voice.speaker_silero(response)
-        exec(func_name + '()')  # для всех остальных функций просто их выполняем
+        if response:  # проверка, что response не пустая строка
+            voice.speaker_silero(response)
+        else:
+            exec(func_name + '()')  # для всех остальных функций просто их выполняем
 
 def recognize_wheel():
     #Приветствие пользователя при запуске
