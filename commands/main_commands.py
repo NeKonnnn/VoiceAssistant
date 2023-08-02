@@ -15,6 +15,7 @@ def valheim():
     #Указываем путь с игрой вальхейм
     try:
         subprocess.Popen(r'E:\Programms\steam\steamapps\common\Valheim\valheim.exe')
+        voice.speaker_selero('Запустила, наслаждайтесь игрой.')
     except:
         voice.speaker_selero('Путь к файлу не найден, проверьте, правильный ли он')
     
@@ -22,8 +23,9 @@ def steam():
     #Указываем путь до стим
     try:
         subprocess.Popen(r'E:\Programms\steam\steam.exe')
+        voice.speaker_selero('Стим запущен')
     except:
-        voice.speaker_selero_selero('Путь к файлу не найден, проверьте, правильный ли он')
+        voice.speaker_selero('Путь к файлу не найден, проверьте, правильный ли он')
         
 def browser():
     #Открывает браузер заданнный по уполчанию в системе с url указанным здесь
@@ -48,7 +50,10 @@ def offPc():
     os.system("shutdown /s /t 1")
     
 def offBot():
+    voice.speaker_selero('до скорой встречи, сэр')
     sys.exit()
+    
+    
     
 def passive():
     pass

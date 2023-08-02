@@ -1,9 +1,6 @@
 import requests
-import subprocess
 from bs4 import BeautifulSoup
-import vosk
-import pyaudio
-import json
+from configurations.listen_to_task import listen_to_task
 from num2words import num2words
 import re
 
@@ -50,27 +47,9 @@ def weather_check(city):
     except Exception as e:
         voice.speaker_silero(f'Произошла ошибка при попытке запроса к ресурсу API. Ошибка: {e}')
 
-def listen_to_city():
-    model = vosk.Model("model_small")
-    rec = vosk.KaldiRecognizer(model, 16000)
-
-    p = pyaudio.PyAudio()
-    stream = p.open(format=pyaudio.paInt16, channels=1, rate=16000, input=True, frames_per_buffer=8000)
-    stream.start_stream()
-
-    while True:
-        data = stream.read(4000)
-        if len(data) == 0:
-            break
-        if rec.AcceptWaveform(data):
-            res = rec.Result()
-            res_dict = json.loads(res)
-            if 'text' in res_dict:
-                return res_dict['text']
-
 def get_city():
     voice.speaker_silero("Пожалуйста, назовите город, для которого вы хотите узнать погоду.")
-    city = listen_to_city()
+    city = listen_to_task()
     return city
 
 def get_weather():

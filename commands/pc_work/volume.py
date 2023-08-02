@@ -1,13 +1,10 @@
 import subprocess
-import vosk
 import voice
-import pyaudio
-import json
-import re
+from configurations.listen_to_task import listen_to_task
 from numbers1 import words_to_numbers
 
-# def mute_volume():
-#     subprocess.run([r'C:\Users\Nekon\project_GS\myapp\commands\exe\volume\volume.exe'])
+def mute_volume():
+    subprocess.run([r'C:\Users\Nekon\project_GS\myapp\commands\exe\volume\volume.exe'])
 
 # def set_volume_min(volume=25):
 #     subprocess.run([r'C:\Users\Nekon\project_GS\myapp\commands\exe\volume\sound.exe', str(volume)])
@@ -18,35 +15,18 @@ from numbers1 import words_to_numbers
 # def set_volume_max(volume=100):
 #     subprocess.run([r'C:\Users\Nekon\project_GS\myapp\commands\exe\volume\sound.exe', str(volume)])
 
-def change_volume(volume):
+def change_volume(volume, volume_in_words):
     # Проверка на валидность ввода: должно быть число от 0 до 100
     if 0 <= volume <= 100:
         subprocess.run([r'C:\Users\Nekon\project_GS\myapp\commands\exe\volume\sound.exe', str(volume)])
+        voice.speaker_silero(f"Изменила уровень громкости на {volume_in_words}, сэр.")
     else:
         voice.speaker_silero("Уровень громкости должен быть числом от 0 до 100.")
-
-def listen_to_volume():
-    model = vosk.Model("model_small")
-    rec = vosk.KaldiRecognizer(model, 16000)
-
-    p = pyaudio.PyAudio()
-    stream = p.open(format=pyaudio.paInt16, channels=1, rate=16000, input=True, frames_per_buffer=8000)
-    stream.start_stream()
-
-    while True:
-        data = stream.read(4000)
-        if len(data) == 0:
-            break
-        if rec.AcceptWaveform(data):
-            res = rec.Result()
-            res_dict = json.loads(res)
-            if 'text' in res_dict:
-                return res_dict['text']
 
 def get_volume():
     voice.speaker_silero("Пожалуйста, назовите уровень громкости, который вы хотите установить.")
     try:
-        volume = listen_to_volume()
+        volume = listen_to_task()
         if volume == "":
             voice.speaker_silero("Модель не слышит вас. Пожалуйста, говорите громче или проверьте ваш микрофон.")
             return None
@@ -67,6 +47,6 @@ def set_volume():
 
         # Проверяем, что объем находится в допустимом диапазоне
         if 0 <= volume <= 100:
-            change_volume(volume)
+            change_volume(volume, volume_input)  # Передаем текстовое представление уровня громкости
         else:
             voice.speaker_silero("Уровень громкости должен быть числом от 0 до 100.")
