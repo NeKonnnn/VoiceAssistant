@@ -4,6 +4,7 @@ from configurations.listen_to_task import listen_to_task
 from numbers1 import words_to_numbers
 
 def mute_volume():
+    voice.speaker_silero("Выключаю звук, сэр")
     subprocess.run([r'C:\Users\Nekon\project_GS\myapp\commands\exe\volume\volume.exe'])
 
 # def set_volume_min(volume=25):

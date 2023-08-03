@@ -10,8 +10,8 @@ import vosk                 #pip install vosk
 
 #import кастомных (наших) либ
 import words
-from commands.totime.timer import *
-from commands.totime.time_check import tell_time
+from configurations.times import *
+from configurations.benchmark import *
 from commands.main_commands import *
 from commands.weather import *
 from commands.pc_work.volume import * 
@@ -26,6 +26,8 @@ from commands.backlog import add_to_backlog
 # from commands.timer import *         
 import voice
 import chatGPT
+
+triggered = False
 
 q = queue.Queue()
 
@@ -49,15 +51,19 @@ def recognize(data, vectorizer, clf):
     Анализ распознанной речи
     '''
     #Пропускаем все, если длина расспознанного текста меньше 7ми символов
-    if len(data) < 7:
+    global triggered
+    if len(data) < 3:
         return
     #если нет фразы обращения к ассистенту, то отправляем запрос gpt
     trg = words.TRIGGERS.intersection(data.split())
-    if not trg:
+    if not trg and not triggered:  # измените условие на это
         if not int(os.getenv("CHATGPT")):
             return
         voice.speaker_gtts(chatGPT.start_dialogue(data))
         return
+    else:
+        triggered = True  # устанавливаем triggered в True, когда триггерное слово сказано
+        start_timeout()  # и запускаем таймер
     #если была фраза обращения к ассистенту
     #удаляем из команды имя асистента
     data = data.split()

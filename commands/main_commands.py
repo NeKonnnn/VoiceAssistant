@@ -4,34 +4,38 @@ import webbrowser
 import sys
 import requests
 from bs4 import BeautifulSoup
-import vosk
-import pyaudio
-import json
 
 import voice
  
     
-def valheim():
+def open_valheim():
     #Указываем путь с игрой вальхейм
     try:
-        subprocess.Popen(r'E:\Programms\steam\steamapps\common\Valheim\valheim.exe')
-        voice.speaker_selero('Запустила, наслаждайтесь игрой.')
-    except:
-        voice.speaker_selero('Путь к файлу не найден, проверьте, правильный ли он')
+        subprocess.Popen([r'E:\Programms\steam\steamapps\common\Valheim\valheim.exe'])
+    except Exception as e:
+        voice.speaker_silero('Не удалось открыть вальхейм. Проверьте, правильный ли путь к файлу.')
+        print(f"Error: {e}")  # Вывод ошибки в консоль для отладки
+    else:
+        voice.speaker_silero('Запустила, наслаждайтесь игрой.')
     
-def steam():
-    #Указываем путь до стим
+    
+def open_steam():
     try:
         subprocess.Popen(r'E:\Programms\steam\steam.exe')
-        voice.speaker_selero('Стим запущен')
-    except:
-        voice.speaker_selero('Путь к файлу не найден, проверьте, правильный ли он')
+    except Exception as e:
+        voice.speaker_silero('Не удалось открыть стим. Проверьте, правильный ли путь к файлу.')
+        print(f"Error: {e}")  # Вывод ошибки в консоль для отладки
+    else:
+        voice.speaker_silero('стим открыт.')
         
 def browser():
     #Открывает браузер заданнный по уполчанию в системе с url указанным здесь
+    voice.speaker_silero('Готово, сэр')
     webbrowser.open('https://google.com', new=2)
     
+    
 def youtube():
+    voice.speaker_silero('Да, сэр')
     webbrowser.open('https://www.youtube.com/', new=2)
     
 # def weather(city):
@@ -41,19 +45,18 @@ def youtube():
 #         if not response:
 #             raise Exception("API request failed")
 #         w = response.json()
-#         voice.speaker_selero_selero(f"В городе {city} сейчас {w['weather'][0]['description']}, температура {round(w['main']['temp'])} градусов")
+#         voice.speaker_silero_selero(f"В городе {city} сейчас {w['weather'][0]['description']}, температура {round(w['main']['temp'])} градусов")
 #     except Exception as e:
-#         voice.speaker_selero_selero('Произошла ошибка при попытке запроса к ресурсу API, проверь код')
+#         voice.speaker_silero_selero('Произошла ошибка при попытке запроса к ресурсу API, проверь код')
 #         print(e)
     
 def offPc():
+    voice.speaker_silero('выполняю, сэр')
     os.system("shutdown /s /t 1")
     
 def offBot():
-    voice.speaker_selero('до скорой встречи, сэр')
+    voice.speaker_silero('до скорой встречи, сэр')
     sys.exit()
-    
-    
     
 def passive():
     pass
