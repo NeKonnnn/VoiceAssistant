@@ -123,6 +123,8 @@ data_set = {
     
     'запусти таймер': 'start_timer',
     'таймер':'start_timer',
+    'активация таймера': 'start_timer',
+    'начало работы таймера': 'start_timer',
     'поставь на паузу': 'pause_timer',
     'пауза': 'pause_timer',
     'возобновить': 'resume_timer',
