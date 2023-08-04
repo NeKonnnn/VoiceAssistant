@@ -1,3 +1,15 @@
+def pluralize(n, forms):
+    n = abs(n) % 100
+    n1 = n % 10
+    if 10 < n < 20:
+        return forms[2]
+    elif 1 < n1 < 5:
+        return forms[1]
+    elif n1 == 1:
+        return forms[0]
+    else:
+        return forms[2]
+
 words_to_numbers = {
     "один": 1,
     "два": 2,

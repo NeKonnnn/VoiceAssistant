@@ -3,7 +3,7 @@ from num2words import num2words
 import time
 import threading
 import voice
-from numbers1 import words_to_numbers
+from numbers1 import *
 
 class VoiceTimer:
     def __init__(self):

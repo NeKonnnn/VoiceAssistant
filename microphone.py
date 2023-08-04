@@ -10,6 +10,7 @@ import vosk                 #pip install vosk
 
 #import кастомных (наших) либ
 import words
+from commands.totime.stopwatch import *
 from commands.totime.timer import *
 from commands.totime.time_check import tell_time
 from commands.main_commands import *

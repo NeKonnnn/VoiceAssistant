@@ -120,7 +120,7 @@ data_set = {
     'который час': 'tell_time',
     'сколько сейчас времени': 'tell_time',
     'сколько времени': 'tell_time',
-    
+    # таймер
     'запусти таймер': 'start_timer',
     'таймер':'start_timer',
     'активация таймера': 'start_timer',
@@ -131,8 +131,20 @@ data_set = {
     'возобнови таймер': 'resume_timer',
     'останови таймер': 'stop_timer',
     'таймер стоп': 'stop_timer',
-    
-    
-    
-    # 'запусти секнудомер': 'asdasd да, сэр'
+    # секундомер
+    'запусти секундомер': 'start_stopwatch',
+    'секундомер старт': 'start_stopwatch',
+    'активация секундомера': 'start_stopwatch',
+    'запуск секундомер': 'start_stopwatch',
+    'секундомер на паузу': 'pause_stopwatch',
+    'пауза секундомера': 'pause_stopwatch',
+    'секундомер пауза': 'pause_stopwatch',
+    'возобнови секундомер': 'resume_stopwatch',
+    'секундомер продолжить': 'resume_stopwatch',
+    'продолжить секундомер': 'resume_stopwatch',
+    'останови секундомер': 'stop_stopwatch',
+    'секундомер стоп': 'stop_stopwatch',
+    'детенция секундомера': 'stop_stopwatch',
+    'остановка секундомера': 'stop_stopwatch',
+    'завершить работу секундомер': 'stop_stopwatch',
 }
