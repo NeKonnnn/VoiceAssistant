@@ -4,7 +4,7 @@ import os
 import sys
 
 from sklearn.feature_extraction.text import CountVectorizer     # pip install scikit-learn
-from sklearn.linear_model import LogisticRegression
+# from sklearn.linear_model import LogisticRegression
 import sounddevice as sd    #pip install sounddevice
 import vosk                 #pip install vosk
 
@@ -27,6 +27,11 @@ from commands.backlog import add_to_backlog
 # from commands.timer import *         
 import voice
 import chatGPT
+
+# from sklearn.model_selection import cross_val_score
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score, recall_score, roc_auc_score
+from sklearn.linear_model import SGDClassifier
 
 q = queue.Queue()
 
@@ -115,8 +120,18 @@ def recognize_wheel():
     vectorizer = CountVectorizer()
     vectors = vectorizer.fit_transform(list(words.data_set.keys()))
 
-    clf = LogisticRegression()
-    clf.fit(vectors, list(words.data_set.values()))
+    # Ваши метки
+    labels = list(words.data_set.values())
+
+    # Разделение на обучающий и тестовый наборы
+    X_train, X_test, y_train, y_test = train_test_split(vectors, labels, test_size=0.2, random_state=42)
+
+    # Обучение SGDClassifier
+    clf = SGDClassifier(loss='log_loss')
+    clf.fit(X_train, y_train)
+
+    #  # Оценка производительности модели
+    # print("Качество классификации:", clf.score(X_test, y_test))
 
     # постоянная прослушка микрофона
     with sd.RawInputStream(samplerate=samplerate, blocksize = 16000, device=device[0], dtype='int16',
