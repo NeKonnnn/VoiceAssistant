@@ -2,6 +2,7 @@ import json
 import queue
 import os
 import sys
+import numpy as np
 
 from sklearn.feature_extraction.text import CountVectorizer     # pip install scikit-learn
 # from sklearn.linear_model import LogisticRegression
@@ -10,6 +11,7 @@ import vosk                 #pip install vosk
 
 #import кастомных (наших) либ
 import words
+import configuration
 from commands.totime.stopwatch import *
 from commands.totime.timer import *
 from commands.totime.time_check import tell_time
@@ -24,6 +26,7 @@ from commands.pc_work.trash import clear_trash
 from commands.pc_work.task_manager import task_manager
 from commands.pc_work.blinds_up import *
 from commands.backlog import add_to_backlog
+from configurations.times import *
 # from commands.timer import *         
 import voice
 import chatGPT
@@ -32,6 +35,10 @@ import chatGPT
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, recall_score, roc_auc_score
 from sklearn.linear_model import SGDClassifier
+
+# AMPLITUDE_THRESHOLD = 100  # Экспериментальное значение
+
+triggered = False
 
 q = queue.Queue()
 
@@ -45,6 +52,11 @@ try:
 except:
     voice.speaker_silero('Включи микрофон!')
     sys.exit(1)
+    
+# def calculate_amplitude(data):
+#     samples = np.frombuffer(data, dtype=np.int16)
+#     amplitude = np.mean(np.abs(samples))
+#     return amplitude
 
 def callback(indata, frames, time, status):
     '''Очередь с микрофона'''
@@ -55,15 +67,19 @@ def recognize(data, vectorizer, clf):
     Анализ распознанной речи
     '''
     #Пропускаем все, если длина расспознанного текста меньше 7ми символов
+    global triggered
     if len(data) < 7:
         return
     #если нет фразы обращения к ассистенту, то отправляем запрос gpt
     trg = words.TRIGGERS.intersection(data.split())
-    if not trg:
+    if not trg and not triggered:  # измените условие на это
         if not int(os.getenv("CHATGPT")):
             return
         voice.speaker_gtts(chatGPT.start_dialogue(data))
         return
+    else:
+        triggered = True  # устанавливаем triggered в True, когда триггерное слово сказано
+        start_timeout()  # и запускаем таймер
     #если была фраза обращения к ассистенту
     #удаляем из команды имя асистента
     data = data.split()
@@ -138,10 +154,29 @@ def recognize_wheel():
                             channels=1, callback=callback):
 
         rec = vosk.KaldiRecognizer(model, samplerate)
+        listen_for_command = False
+        command_end_time = 0
+
         while True and int(os.getenv('MIC')):
             data = q.get()
+            # amplitude = np.frombuffer(data, dtype=np.int16).mean()
+            # if amplitude > 100:
             if rec.AcceptWaveform(data):
                 data = json.loads(rec.Result())['text']
-                recognize(data, vectorizer, clf)
+
+                # Если обнаружено ключевое слово и не прослушивается команда
+                if words.TRIGGERS.intersection(data.split()) and not listen_for_command:
+                    # Начать прослушивание команды
+                    listen_for_command = True
+                    command_end_time = time.time() + 30  # Продолжать прослушивание в течение 30 секунд
+
+                # Если прослушивается команда
+                if listen_for_command:
+                    # Если время прослушивания команды истекло
+                    if time.time() > command_end_time:
+                        listen_for_command = False
+                    else:
+                        # Распознать и выполнить команду
+                        recognize(data, vectorizer, clf)
 
     print('Микрофон отключен')
