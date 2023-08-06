@@ -36,7 +36,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, recall_score, roc_auc_score
 from sklearn.linear_model import SGDClassifier
 
-# AMPLITUDE_THRESHOLD = 100  # Экспериментальное значение
+AMPLITUDE_THRESHOLD = 60  # Экспериментальное значение
 
 triggered = False
 
@@ -53,10 +53,10 @@ except:
     voice.speaker_silero('Включи микрофон!')
     sys.exit(1)
     
-# def calculate_amplitude(data):
-#     samples = np.frombuffer(data, dtype=np.int16)
-#     amplitude = np.mean(np.abs(samples))
-#     return amplitude
+def calculate_amplitude(data):
+    samples = np.frombuffer(data, dtype=np.int16)
+    amplitude = np.mean(np.abs(samples))
+    return amplitude
 
 def callback(indata, frames, time, status):
     '''Очередь с микрофона'''
@@ -159,24 +159,28 @@ def recognize_wheel():
 
         while True and int(os.getenv('MIC')):
             data = q.get()
-            # amplitude = np.frombuffer(data, dtype=np.int16).mean()
-            # if amplitude > 100:
-            if rec.AcceptWaveform(data):
-                data = json.loads(rec.Result())['text']
+            amplitude = calculate_amplitude(data)
+            print(f"Amplitude: {amplitude}")  # Debugging line
+            if amplitude > AMPLITUDE_THRESHOLD:
+                if rec.AcceptWaveform(data):
+                    data = json.loads(rec.Result())['text']
 
-                # Если обнаружено ключевое слово и не прослушивается команда
-                if words.TRIGGERS.intersection(data.split()) and not listen_for_command:
-                    # Начать прослушивание команды
-                    listen_for_command = True
-                    command_end_time = time.time() + 30  # Продолжать прослушивание в течение 30 секунд
+                    # Если обнаружено ключевое слово и не прослушивается команда
+                    if words.TRIGGERS.intersection(data.split()) and not listen_for_command:
+                        # очищаем очередь
+                        while not q.empty():
+                            q.get()
+                        # Начать прослушивание команды
+                        listen_for_command = True
+                        command_end_time = time.time() + 30  # Продолжать прослушивание в течение 30 секунд
 
-                # Если прослушивается команда
-                if listen_for_command:
-                    # Если время прослушивания команды истекло
-                    if time.time() > command_end_time:
-                        listen_for_command = False
-                    else:
-                        # Распознать и выполнить команду
-                        recognize(data, vectorizer, clf)
+                    # Если прослушивается команда
+                    if listen_for_command:
+                        # Если время прослушивания команды истекло
+                        if time.time() > command_end_time:
+                            listen_for_command = False
+                        else:
+                            # Распознать и выполнить команду
+                            recognize(data, vectorizer, clf)
 
     print('Микрофон отключен')
