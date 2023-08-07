@@ -5,6 +5,8 @@ import threading
 import voice
 from numbers1 import *
 
+timer = None
+
 class VoiceTimer:
     def __init__(self):
         self.start_time = None
@@ -114,18 +116,21 @@ def seconds_to_words(seconds):
     return result.strip()
 
 def pause_timer():
+    global timer
     if timer is not None:
         timer.pause()
     else:
         voice.speaker_silero("Таймер еще не был запущен.")
 
 def resume_timer():
+    global timer
     if timer is not None:
         timer.resume()
     else:
         voice.speaker_silero("Таймер еще не был запущен.")
 
 def stop_timer():
+    global timer
     if timer is not None:
         timer.stop()
     else:
