@@ -12,6 +12,8 @@ import vosk                 #pip install vosk
 #import кастомных (наших) либ
 import words
 import configuration
+from commands.you_tube import *
+from commands.map_search import *
 from commands.totime.stopwatch import *
 from commands.totime.timer import *
 from commands.totime.time_check import tell_time
@@ -24,8 +26,9 @@ from commands.pc_work.swap import swap_language
 from commands.pc_work.screen import screenshot
 from commands.pc_work.trash import clear_trash
 from commands.pc_work.task_manager import task_manager
-from commands.pc_work.blinds_up import *
+from commands.pc_work.windows import *
 from commands.backlog import add_to_backlog
+from commands.internet_search import *
 from configurations.times import *
 # from commands.timer import *         
 import voice
