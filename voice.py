@@ -5,6 +5,7 @@ from io import BytesIO
 import torch
 import sounddevice as sd
 import soundfile as sf
+import time
 
 
 def speaker_gtts(text):
@@ -46,15 +47,21 @@ model_en.to(device)
 sample_rate = 48000
 speaker='baya'   #aidar, baya, kseniya, xenia, eugene
 en_speaker = 'en_6' # от 0 до 117
-
+put_accent = True
+put_yo = True
 
 def speaker_silero(text):
     try:
         audio = model_ru.apply_tts(text=text,
                                     speaker=speaker,
-                                    sample_rate=sample_rate)
+                                    sample_rate=sample_rate,
+                                    put_accent=put_accent,
+                                    put_yo=put_yo)
 
-        sd.play(audio, blocking=True)
+        # sd.play(audio, blocking=True)
+        sd.play(audio, sample_rate * 1.05)
+        time.sleep((len(audio) / sample_rate) + 0.5)
+        sd.stop()
     except ValueError:
         raise
     

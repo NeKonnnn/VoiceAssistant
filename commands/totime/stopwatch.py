@@ -29,6 +29,17 @@ class VoiceStopwatch:
         self.is_paused = True
         self.paused_time = time.time()
         voice.speaker_silero("Поставила секундомер на паузу")
+    
+    
+    def resume(self):
+        if self.start_time is None:
+            raise Exception("Секундомер не был запущен")
+        if not self.is_paused:
+            raise Exception("Секундомер не был на паузе")
+        self.is_paused = False
+        self.total_paused_time += time.time() - self.paused_time
+        self.paused_time = None
+        voice.speaker_silero("Секундомер возобновлен")
 
     def stop(self):
         if self.start_time is None:

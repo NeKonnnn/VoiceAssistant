@@ -6,8 +6,7 @@ import requests
 from bs4 import BeautifulSoup
 
 import voice
- 
-    
+
 def open_valheim():
     #Указываем путь с игрой вальхейм
     try:
@@ -16,8 +15,7 @@ def open_valheim():
         voice.speaker_silero('Не удалось открыть вальхейм. Проверьте, правильный ли путь к файлу.')
         print(f"Error: {e}")  # Вывод ошибки в консоль для отладки
     else:
-        voice.speaker_silero('Запустила, наслаждайтесь игрой.')
-    
+        voice.speaker_silero('Запустила, наслаждайтесь игрой.')   
     
 def open_steam():
     try:
@@ -27,16 +25,6 @@ def open_steam():
         print(f"Error: {e}")  # Вывод ошибки в консоль для отладки
     else:
         voice.speaker_silero('стим открыт.')
-        
-def browser():
-    #Открывает браузер заданнный по уполчанию в системе с url указанным здесь
-    voice.speaker_silero('Готово, сэр')
-    webbrowser.open('https://google.com', new=2)
-    
-    
-def youtube():
-    voice.speaker_silero('Да, сэр')
-    webbrowser.open('https://www.youtube.com/', new=2)
     
 # def weather(city):
 #     try:

@@ -21,9 +21,10 @@ def start_timeout():
     global timeout_thread, triggered
     if timeout_thread is not None:
         timeout_thread.cancel()
-    timeout_thread = threading.Timer(30, stop_listening)
+    timeout_thread = threading.Timer(30, stop_listening, args=[timeout_thread])
     timeout_thread.start()
 
-def stop_listening():
+def stop_listening(last_thread):
     global triggered
-    triggered = False
+    if timeout_thread == last_thread:
+        triggered = False

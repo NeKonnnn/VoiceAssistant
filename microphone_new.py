@@ -21,7 +21,7 @@ from commands.pc_work.swap import swap_language
 from commands.pc_work.screen import screenshot
 from commands.pc_work.trash import clear_trash
 from commands.pc_work.task_manager import task_manager
-from commands.pc_work.blinds_up import *
+from commands.pc_work.windows import *
 from commands.backlog import add_to_backlog
 # from commands.timer import *         
 import voice
