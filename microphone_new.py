@@ -2,16 +2,23 @@ import json
 import queue
 import os
 import sys
+import numpy as np
 
 from sklearn.feature_extraction.text import CountVectorizer     # pip install scikit-learn
-from sklearn.linear_model import LogisticRegression
+# from sklearn.linear_model import LogisticRegression
 import sounddevice as sd    #pip install sounddevice
 import vosk                 #pip install vosk
 
 #import кастомных (наших) либ
 import words
-from configurations.times import *
-from configurations.benchmark import *
+import configuration
+from commands.alarm import *
+from commands.you_tube import *
+from commands.pc_work.creaters import *
+from commands.map_search import *
+from commands.totime.stopwatch import *
+from commands.totime.timer import *
+from commands.totime.time_check import tell_time
 from commands.main_commands import *
 from commands.weather import *
 from commands.pc_work.volume import * 
@@ -23,9 +30,18 @@ from commands.pc_work.trash import clear_trash
 from commands.pc_work.task_manager import task_manager
 from commands.pc_work.windows import *
 from commands.backlog import add_to_backlog
+from commands.internet_search import *
+from configurations.times import *
 # from commands.timer import *         
 import voice
 import chatGPT
+
+# from sklearn.model_selection import cross_val_score
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score, recall_score, roc_auc_score
+from sklearn.linear_model import SGDClassifier
+
+AMPLITUDE_THRESHOLD = 40  # Экспериментальное значение
 
 triggered = False
 
@@ -41,6 +57,11 @@ try:
 except:
     voice.speaker_silero('Включи микрофон!')
     sys.exit(1)
+    
+def calculate_amplitude(data):
+    samples = np.frombuffer(data, dtype=np.int16)
+    amplitude = np.mean(np.abs(samples))
+    return amplitude
 
 def callback(indata, frames, time, status):
     '''Очередь с микрофона'''
@@ -52,7 +73,7 @@ def recognize(data, vectorizer, clf):
     '''
     #Пропускаем все, если длина расспознанного текста меньше 7ми символов
     global triggered
-    if len(data) < 3:
+    if len(data) < 7:
         return
     #если нет фразы обращения к ассистенту, то отправляем запрос gpt
     trg = words.TRIGGERS.intersection(data.split())
@@ -120,18 +141,51 @@ def recognize_wheel():
     vectorizer = CountVectorizer()
     vectors = vectorizer.fit_transform(list(words.data_set.keys()))
 
-    clf = LogisticRegression()
-    clf.fit(vectors, list(words.data_set.values()))
+    # Ваши метки
+    labels = list(words.data_set.values())
+
+    # Разделение на обучающий и тестовый наборы
+    X_train, X_test, y_train, y_test = train_test_split(vectors, labels, test_size=0.2, random_state=42)
+
+    # Обучение SGDClassifier
+    clf = SGDClassifier(loss='log_loss')
+    clf.fit(X_train, y_train)
+
+     # Оценка производительности модели
+    print("Качество классификации:", clf.score(X_test, y_test))
 
     # постоянная прослушка микрофона
     with sd.RawInputStream(samplerate=samplerate, blocksize = 16000, device=device[0], dtype='int16',
                             channels=1, callback=callback):
 
         rec = vosk.KaldiRecognizer(model, samplerate)
+        listen_for_command = False
+        command_end_time = 0
+
         while True and int(os.getenv('MIC')):
             data = q.get()
-            if rec.AcceptWaveform(data):
-                data = json.loads(rec.Result())['text']
-                recognize(data, vectorizer, clf)
+            amplitude = calculate_amplitude(data)
+            print(f"Amplitude: {amplitude}")  # Debugging line
+            if amplitude > AMPLITUDE_THRESHOLD:
+                if rec.AcceptWaveform(data):
+                    data = json.loads(rec.Result())['text']
+
+                    # Если обнаружено ключевое слово и не прослушивается команда
+                    if words.TRIGGERS.intersection(data.split()) and not listen_for_command:
+                        # очищаем очередь
+                        while not q.empty():
+                            q.get()
+                        # Начать прослушивание команды
+                        listen_for_command = True
+                        command_end_time = time.time() + 30  # Продолжать прослушивание в течение 30 секунд
+
+                    # Если прослушивается команда
+                    if listen_for_command:
+                        # Если время прослушивания команды истекло
+                        if time.time() > command_end_time:
+                            listen_for_command = False
+                        else:
+                            # Распознать и выполнить команду
+                            recognize(data, vectorizer, clf)
 
     print('Микрофон отключен')
