@@ -1,4 +1,4 @@
-# VoiceAssistant - Ember
+# VoiceAssistant - Amber
 
 На данный момент ассистент умеет:
 1. выключать PC
