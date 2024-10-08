@@ -41,7 +41,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, recall_score, roc_auc_score
 from sklearn.linear_model import SGDClassifier
 
-AMPLITUDE_THRESHOLD = 40  # Экспериментальное значение
+AMPLITUDE_THRESHOLD = 100  # Экспериментальное значение
 
 triggered = False
 
@@ -77,6 +77,7 @@ def recognize(data, vectorizer, clf):
         return
     #если нет фразы обращения к ассистенту, то отправляем запрос gpt
     trg = words.TRIGGERS.intersection(data.split())
+    print(f"Триггеры: {trg}, данные: {data}")
     if not trg and not triggered:  # измените условие на это
         if not int(os.getenv("CHATGPT")):
             return
@@ -129,6 +130,7 @@ def recognize(data, vectorizer, clf):
             exec(func_name + '()')  # для всех остальных функций просто их выполняем
 
 def recognize_wheel():
+    print("Функция recognize_wheel вызвана!") 
     #Приветствие пользователя при запуске
     voice.speaker_silero("Здравствуйте, сэр. Чем могу помочь?")
     print('Слушаем')
@@ -155,7 +157,7 @@ def recognize_wheel():
     print("Качество классификации:", clf.score(X_test, y_test))
 
     # постоянная прослушка микрофона
-    with sd.RawInputStream(samplerate=samplerate, blocksize = 16000, device=device[0], dtype='int16',
+    with sd.RawInputStream(samplerate=samplerate, blocksize = 8000, device=device[0], dtype='int16',
                             channels=1, callback=callback):
 
         rec = vosk.KaldiRecognizer(model, samplerate)
@@ -165,27 +167,29 @@ def recognize_wheel():
         while True and int(os.getenv('MIC')):
             data = q.get()
             amplitude = calculate_amplitude(data)
-            print(f"Amplitude: {amplitude}")  # Debugging line
-            if amplitude > AMPLITUDE_THRESHOLD:
-                if rec.AcceptWaveform(data):
-                    data = json.loads(rec.Result())['text']
+            # временно убираем вывод амплитуды
+            print(f"Амплитуда: {amplitude}")  # Debugging line
+            #if amplitude > AMPLITUDE_THRESHOLD:
+            if rec.AcceptWaveform(data):
+                data = json.loads(rec.Result())['text']
+                print(f'Я сказал: {data}')
 
-                    # Если обнаружено ключевое слово и не прослушивается команда
-                    if words.TRIGGERS.intersection(data.split()) and not listen_for_command:
-                        # очищаем очередь
-                        while not q.empty():
-                            q.get()
-                        # Начать прослушивание команды
-                        listen_for_command = True
-                        command_end_time = time.time() + 30  # Продолжать прослушивание в течение 30 секунд
+                # Если обнаружено ключевое слово и не прослушивается команда
+                if words.TRIGGERS.intersection(data.split()) and not listen_for_command:
+                    # очищаем очередь
+                    while not q.empty():
+                        q.get()
+                    # Начать прослушивание команды
+                    listen_for_command = True
+                    command_end_time = time.time() + 15  # Продолжать прослушивание в течение 15 секунд
 
-                    # Если прослушивается команда
-                    if listen_for_command:
-                        # Если время прослушивания команды истекло
-                        if time.time() > command_end_time:
-                            listen_for_command = False
-                        else:
-                            # Распознать и выполнить команду
-                            recognize(data, vectorizer, clf)
+                # Если прослушивается команда
+                if listen_for_command:
+                    # Если время прослушивания команды истекло
+                    if time.time() > command_end_time:
+                        listen_for_command = False
+                    else:
+                        # Распознать и выполнить команду
+                        recognize(data, vectorizer, clf)
 
     print('Микрофон отключен')
