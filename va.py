@@ -1,16 +1,44 @@
+import sys
 import os
+from PyQt6.QtWidgets import QApplication 
 
-from gui import Application
-
+# Импортируем класс VoiceAssistantApp 
+from gui_py import VoiceAssistantApp
 from configuration import SETTINGS
-#устанавливаем переменные окружения из словаря SETTINGS
+
+# Устанавливаем переменные окружения из словаря SETTINGS
 for key, value in SETTINGS.items():
     os.environ[key] = value
 
 if __name__ == '__main__':
-    root = Application()
-    root.mainloop()
+    # Создаем экземпляр приложения
+    app = QApplication(sys.argv)
 
+    # Инициализируем главное окно
+    root = VoiceAssistantApp()
+
+    # Показываем главное окно
+    root.show()
+
+    # Запускаем основной цикл приложения PyQt6
+    sys.exit(app.exec())
+
+
+# ------------------------------
+# Работает с TKinter
+# import os
+
+# from gui import Application
+
+# from configuration import SETTINGS
+# #устанавливаем переменные окружения из словаря SETTINGS
+# for key, value in SETTINGS.items():
+#     os.environ[key] = value
+
+# if __name__ == '__main__':
+#     root = Application()
+#     root.mainloop()
+# --------------------------------
 
 # для PyQT6
 # import os
