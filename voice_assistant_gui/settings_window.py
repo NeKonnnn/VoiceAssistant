@@ -99,14 +99,6 @@ class CreateCommandWindow(QWidget):
         else:
             show_custom_message("Ошибка", "Пожалуйста, введите путь до файла и команду.")
 
-
-        if exe_path and command_name:
-            add_exe_path(command_name, exe_path)  # Сохранение в файл
-            show_custom_message(self, "Успех", f"Команда '{command_name}' добавлена.")
-            self.close()  # Закрываем окно после успешного добавления
-        else:
-            show_custom_message(self, "Ошибка", "Пожалуйста, введите путь до файла и команду.")
-
     def get_button_style(self):
         return """
         QPushButton {
