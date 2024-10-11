@@ -75,6 +75,11 @@ def recognize(data, vectorizer, clf):
     global triggered
     if len(data) < 7:
         return
+    #-------------потом можно будет удалить------------------
+    # Логика для записи распознанной команды в файл
+    log_command_to_file(data)
+    #--------------------------------------------------------
+
     #если нет фразы обращения к ассистенту, то отправляем запрос gpt
     trg = words.TRIGGERS.intersection(data.split())
     print(f"Триггеры: {trg}, данные: {data}")
@@ -129,6 +134,14 @@ def recognize(data, vectorizer, clf):
         else:
             exec(func_name + '()')  # для всех остальных функций просто их выполняем
 
+#--------------------
+# Функция предназначена для сбора датасета, для последующего обучения командам (модельки)
+def log_command_to_file(command):
+    log_file_path = "commands_log.txt"  # Вы можете указать другой путь или файл
+    with open(log_file_path, "a", encoding="utf-8") as file:
+        file.write(command + "\n")
+#--------------------
+
 def recognize_wheel():
     print("Функция recognize_wheel вызвана!") 
     #Приветствие пользователя при запуске
@@ -168,7 +181,7 @@ def recognize_wheel():
             data = q.get()
             amplitude = calculate_amplitude(data)
             # временно убираем вывод амплитуды
-            print(f"Амплитуда: {amplitude}")  # Debugging line
+            # print(f"Амплитуда: {amplitude}")  # Debugging line
             #if amplitude > AMPLITUDE_THRESHOLD:
             if rec.AcceptWaveform(data):
                 data = json.loads(rec.Result())['text']

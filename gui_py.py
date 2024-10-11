@@ -6,7 +6,7 @@ from PyQt6.QtGui import QIcon, QMouseEvent
 from PyQt6.QtCore import QTimer, QSize, QRect, Qt, QPropertyAnimation
 
 # Импортируем функции из вашего проекта
-from microphone import recognize_wheel
+from microphone_new import recognize_wheel
 from chatGPT import write_history, new_dialogue
 
 class VoiceAssistantApp(QMainWindow):
@@ -153,6 +153,7 @@ class VoiceAssistantApp(QMainWindow):
         self.wheel_mic_animation = None
         self.wheel_gpt_animation = None
         self.wheel_refresh_animation = None
+        
 
     def resizeEvent(self, event):
         """Центрирование кнопки и изменение размеров меню при изменении размера окна."""
