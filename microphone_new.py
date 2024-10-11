@@ -31,6 +31,8 @@ from commands.pc_work.task_manager import task_manager
 from commands.pc_work.windows import *
 from commands.backlog import add_to_backlog
 from commands.internet_search import *
+from commands.command_executor import execute_command
+from voice_assistant_gui.settings_manager import get_all_commands
 from configurations.times import *
 # from commands.timer import *         
 import voice
@@ -68,59 +70,65 @@ def callback(indata, frames, time, status):
     q.put(bytes(indata))
 
 def recognize(data, vectorizer, clf):
-    '''
-    Анализ распознанной речи
-    '''
-    #Пропускаем все, если длина расспознанного текста меньше 7ми символов
+    """
+    Анализ распознанной речи и выполнение команды.
+    """
     global triggered
+    print(f"Распознанная команда: {data}")  # Логирование команды
+    
+    # Пропускаем все, если длина распознанного текста меньше 7 символов
     if len(data) < 7:
+        print("Команда слишком короткая, пропускаем.")
         return
-    #-------------потом можно будет удалить------------------
+
     # Логика для записи распознанной команды в файл
     log_command_to_file(data)
-    #--------------------------------------------------------
 
-    #если нет фразы обращения к ассистенту, то отправляем запрос gpt
+    # Проверяем триггерные слова
     trg = words.TRIGGERS.intersection(data.split())
-    print(f"Триггеры: {trg}, данные: {data}")
-    if not trg and not triggered:  # измените условие на это
+    print(f"Триггеры: {trg}")
+
+    if not trg and not triggered:
         if not int(os.getenv("CHATGPT")):
+            print("Триггер не обнаружен и ChatGPT отключен, пропускаем.")
             return
         voice.speaker_gtts(chatGPT.start_dialogue(data))
         return
     else:
-        triggered = True  # устанавливаем triggered в True, когда триггерное слово сказано
-        start_timeout()  # и запускаем таймер
-    #если была фраза обращения к ассистенту
-    #удаляем из команды имя асистента
+        triggered = True
+        start_timeout()
+
+    # Удаляем триггерное слово из команды
     data = data.split()
     filtered_data = [word for word in data if word not in words.TRIGGERS]
     data = ' '.join(filtered_data)
+    print(f"Команда после удаления триггеров: {data}")
 
-    #получаем вектор полученного текста
-    #сравниваем с вариантами, получая наиболее подходящий ответ
-    # Преобразование команды пользователя в числовой вектор
+    # Получаем все сохраненные команды
+    all_commands = get_all_commands()
+    print(f"Доступные команды: {all_commands}")
+
+    # Проверяем, если команда соответствует какой-то из сохраненных команд
+    for command in all_commands:
+        if command in data:
+            print(f"Команда распознана как: {command}")
+            execute_command(command)
+            return
+
+    # Если команда не найдена, продолжаем предсказание через модель
     user_command_vector = vectorizer.transform([data])
-
-    # Предсказание вероятностей принадлежности к каждому классу
     predicted_probabilities = clf.predict_proba(user_command_vector)
-
-    # Задание порога совпадения
-    threshold = 0.2
-
-    # Поиск наибольшей вероятности и выбор ответа, если он превышает порог
+    
+    threshold = 0.1
     max_probability = max(predicted_probabilities[0])
-    print(max_probability)
     if max_probability >= threshold:
         answer = clf.classes_[predicted_probabilities[0].argmax()]
     else:
         voice.speaker_silero("Команда не распознана")
         return
-    
 
-    #получение имени функции из ответа из data_set
     func_name = answer.split()[0]
-    
+        
     #запуск функции из commands
     if func_name == "get_city":
         get_weather()  # вызываем новую функцию get_weather

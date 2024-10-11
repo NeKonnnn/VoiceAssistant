@@ -7,6 +7,7 @@ import sounddevice as sd
 import soundfile as sf
 import time
 
+from voice_assistant_gui.settings_manager import get_selected_voice
 
 def speaker_gtts(text):
     lang = os.getenv('LANG')
@@ -15,7 +16,6 @@ def speaker_gtts(text):
         f.seek(0)
         data, fs = sf.read(f)
         sd.play(data, fs, blocking=True)
-
 
 models_urls = ['https://models.silero.ai/models/tts/en/v3_en.pt',
                'https://models.silero.ai/models/tts/ru/v3_1_ru.pt']
@@ -30,7 +30,7 @@ torch.set_num_threads(4)
 local_file_ru = model_ru
 
 if not os.path.isfile(local_file_ru):
-    torch.hub.download_url_to_file(models_urls[1], local_file_ru)  
+    torch.hub.download_url_to_file(models_urls[1], local_file_ru)
 
 model_ru = torch.package.PackageImporter(local_file_ru).load_pickle("tts_models", "model")
 model_ru.to(device)
@@ -39,26 +39,28 @@ model_ru.to(device)
 local_file_en = model_en
 
 if not os.path.isfile(local_file_en):
-    torch.hub.download_url_to_file(models_urls[0], local_file_en)  
+    torch.hub.download_url_to_file(models_urls[0], local_file_en)
 
 model_en = torch.package.PackageImporter(local_file_en).load_pickle("tts_models", "model")
 model_en.to(device)
 
 sample_rate = 48000
-speaker='baya'   #aidar, baya, kseniya, xenia, eugene
-en_speaker = 'en_6' # от 0 до 117
 put_accent = True
 put_yo = True
 
-def speaker_silero(text):
+# Добавляем параметр для передачи голоса, который нужно использовать
+def speaker_silero(text, speaker=None):
     try:
-        audio = model_ru.apply_tts(text=text,
-                                    speaker=speaker,
-                                    sample_rate=sample_rate,
-                                    put_accent=put_accent,
-                                    put_yo=put_yo)
+        # Если голос не передан, используем голос по умолчанию из настроек
+        if not speaker:
+            speaker = get_selected_voice()
 
-        # sd.play(audio, blocking=True)
+        audio = model_ru.apply_tts(text=text,
+                                   speaker=speaker,
+                                   sample_rate=sample_rate,
+                                   put_accent=put_accent,
+                                   put_yo=put_yo)
+
         sd.play(audio, sample_rate * 1.05)
         time.sleep((len(audio) / sample_rate) + 0.5)
         sd.stop()

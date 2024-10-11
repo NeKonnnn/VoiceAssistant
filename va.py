@@ -3,7 +3,7 @@ import os
 from PyQt6.QtWidgets import QApplication 
 
 # Импортируем класс VoiceAssistantApp 
-from gui_py import VoiceAssistantApp
+from voice_assistant_gui.gui_py import VoiceAssistantApp
 from configuration import SETTINGS
 
 # Устанавливаем переменные окружения из словаря SETTINGS
