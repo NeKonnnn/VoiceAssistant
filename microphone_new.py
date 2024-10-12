@@ -49,6 +49,8 @@ triggered = False
 
 q = queue.Queue()
 
+is_listening = True
+
 model = vosk.Model('model_small')        #голосовую модель vosk нужно поместить в папку с файлами проекта
                                         #https://alphacephei.com/vosk/
                                         #https://alphacephei.com/vosk/models
@@ -67,7 +69,8 @@ def calculate_amplitude(data):
 
 def callback(indata, frames, time, status):
     '''Очередь с микрофона'''
-    q.put(bytes(indata))
+    if is_listening:  # Микрофон активен
+        q.put(bytes(indata))
 
 def recognize(data, vectorizer, clf):
     """

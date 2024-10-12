@@ -6,16 +6,25 @@ import torch
 import sounddevice as sd
 import soundfile as sf
 import time
+import microphone_new
 
 from voice_assistant_gui.settings_manager import get_selected_voice
 
 def speaker_gtts(text):
+    # Отключаем микрофон перед ответом
+    microphone_new.is_listening = False
+    print("Микрофон отключен на время ответа")
+
     lang = os.getenv('LANG')
     with BytesIO() as f:
         gTTS(text=text, lang=lang, slow=False).write_to_fp(f)
         f.seek(0)
         data, fs = sf.read(f)
         sd.play(data, fs, blocking=True)
+
+    # Включаем микрофон после завершения ответа
+    microphone_new.is_listening = True
+    print("Микрофон снова включен")
 
 models_urls = ['https://models.silero.ai/models/tts/en/v3_en.pt',
                'https://models.silero.ai/models/tts/ru/v3_1_ru.pt']
@@ -51,6 +60,10 @@ put_yo = True
 # Добавляем параметр для передачи голоса, который нужно использовать
 def speaker_silero(text, speaker=None):
     try:
+        # Отключаем микрофон перед ответом
+        microphone_new.is_listening = False
+        print("Микрофон отключен на время ответа")
+
         # Если голос не передан, используем голос по умолчанию из настроек
         if not speaker:
             speaker = get_selected_voice()
@@ -61,9 +74,14 @@ def speaker_silero(text, speaker=None):
                                    put_accent=put_accent,
                                    put_yo=put_yo)
 
+        # Воспроизведение
         sd.play(audio, sample_rate * 1.05)
         time.sleep((len(audio) / sample_rate) + 0.5)
         sd.stop()
+
+        # Включаем микрофон после завершения ответа
+        microphone_new.is_listening = True
+        print("Микрофон снова включен")
     except ValueError:
         raise
     
