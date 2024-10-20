@@ -1,10 +1,10 @@
+import os
 import datetime
 import winsound
 import threading
 from num2words import num2words
 import voice
 from configurations.listen_to_task import listen_to_task
-import threading
 import re
 from numbers1 import words_to_numbers
 
@@ -23,11 +23,16 @@ class AlarmThread(threading.Thread):
     def run(self):
         count = 0
         alarm_time = datetime.datetime.now().replace(hour=self.hour, minute=self.minute, second=0, microsecond=0)
+        # Формируем путь к файлу alarm.wav относительно текущей директории
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        parent_dir = os.path.dirname(current_dir)
+        alarm_sound_path = os.path.join(parent_dir, 'icons', 'alarm.wav')
+        
         while not self._stop_event.is_set():
             if datetime.datetime.now() >= alarm_time:
                 if count < 5:
                     print('Будильник сработал!')
-                    winsound.PlaySound('C:\\Users\\Nekon\\project_GS\\myapp\\icons\\alarm.wav', winsound.SND_LOOP)
+                    winsound.PlaySound(alarm_sound_path, winsound.SND_LOOP)
                     count += 1
                 else:
                     break

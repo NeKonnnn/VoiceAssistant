@@ -3,6 +3,11 @@ import queue
 import os
 import sys
 import numpy as np
+import torch
+import pickle
+import re
+from transformers import AutoTokenizer, AutoModel
+from sklearn.metrics.pairwise import cosine_similarity
 
 from sklearn.feature_extraction.text import CountVectorizer     # pip install scikit-learn
 # from sklearn.linear_model import LogisticRegression
@@ -32,7 +37,7 @@ from commands.pc_work.windows import *
 from commands.backlog import add_to_backlog
 from commands.internet_search import *
 from commands.command_executor import execute_command
-from voice_assistant_gui.settings_manager import get_all_commands
+from voice_assistant_gui.settings_manager import get_all_commands, load_amplitude_threshold
 from configurations.times import *
 # from commands.timer import *         
 import voice
@@ -44,11 +49,10 @@ from sklearn.metrics import accuracy_score, recall_score, roc_auc_score
 from sklearn.linear_model import SGDClassifier
 
 AMPLITUDE_THRESHOLD = 100  # Экспериментальное значение
+SIMILARITY_THRESHOLD = 0.7  # Порог для косинусного сходства
 
 triggered = False
-
 q = queue.Queue()
-
 is_listening = True
 
 model = vosk.Model('model_small')        #голосовую модель vosk нужно поместить в папку с файлами проекта
@@ -61,6 +65,25 @@ try:
 except:
     voice.speaker_silero('Включи микрофон!')
     sys.exit(1)
+
+# Загрузка предобученной модели, токенизатора и классификатора
+with open("model/model.pkl", "rb") as f:
+    tokenizer, bert_model, clf = pickle.load(f)
+
+def preprocess_text(text):
+    """Предобработка текста для модели."""
+    text = text.lower()  # Приведение к нижнему регистру
+    text = re.sub(r'[^а-яё\s]', '', text)  # Удаление всех символов, кроме русских букв и пробелов
+    text = re.sub(r'\s+', ' ', text).strip()  # Удаление лишних пробелов
+    return text
+
+def encode_text(text):
+    """Получение эмбеддинга текста с использованием RuBERT."""
+    inputs = tokenizer(text, return_tensors='pt', truncation=True, padding=True)
+    with torch.no_grad():
+        outputs = bert_model(**inputs)
+        sentence_embedding = outputs.pooler_output.squeeze().numpy()
+    return sentence_embedding
     
 def calculate_amplitude(data):
     samples = np.frombuffer(data, dtype=np.int16)
@@ -72,7 +95,16 @@ def callback(indata, frames, time, status):
     if is_listening:  # Микрофон активен
         q.put(bytes(indata))
 
-def recognize(data, vectorizer, clf):
+def get_most_similar_command(input_text, known_commands):
+    """Возвращает наиболее похожую команду на основе косинусного сходства."""
+    input_vector = encode_text(preprocess_text(input_text)).reshape(1, -1)
+    known_vectors = [encode_text(preprocess_text(cmd)).reshape(1, -1) for cmd in known_commands]
+    similarities = [cosine_similarity(input_vector, vec)[0][0] for vec in known_vectors]
+    most_similar_idx = np.argmax(similarities)
+    most_similar_command = known_commands[most_similar_idx]
+    return most_similar_command, similarities[most_similar_idx]
+
+def recognize(data):
     """
     Анализ распознанной речи и выполнение команды.
     """
@@ -91,6 +123,7 @@ def recognize(data, vectorizer, clf):
     trg = words.TRIGGERS.intersection(data.split())
     print(f"Триггеры: {trg}")
 
+    # Если триггерное слово не обнаружено и ChatGPT отключен, пропускаем
     if not trg and not triggered:
         if not int(os.getenv("CHATGPT")):
             print("Триггер не обнаружен и ChatGPT отключен, пропускаем.")
@@ -101,10 +134,9 @@ def recognize(data, vectorizer, clf):
         triggered = True
         start_timeout()
 
-    # Удаляем триггерное слово из команды
-    data = data.split()
-    filtered_data = [word for word in data if word not in words.TRIGGERS]
-    data = ' '.join(filtered_data)
+    # Удаляем триггерные слова из команды
+    data = preprocess_text(data)
+    data = ' '.join([word for word in data.split() if word not in words.TRIGGERS])
     print(f"Команда после удаления триггеров: {data}")
 
     # Получаем все сохраненные команды
@@ -119,31 +151,21 @@ def recognize(data, vectorizer, clf):
             return
 
     # Если команда не найдена, продолжаем предсказание через модель
-    user_command_vector = vectorizer.transform([data])
-    predicted_probabilities = clf.predict_proba(user_command_vector)
-    
-    threshold = 0.1
-    max_probability = max(predicted_probabilities[0])
-    if max_probability >= threshold:
-        answer = clf.classes_[predicted_probabilities[0].argmax()]
-    else:
-        voice.speaker_silero("Команда не распознана")
-        return
+    command_vector = encode_text(data).reshape(1, -1)
+    predicted_label = clf.predict(command_vector)[0]
 
-    func_name = answer.split()[0]
-        
-    #запуск функции из commands
+    # Выполнение команды
+    func_name = predicted_label.split()[0]
+    print(f"Распознана команда: {func_name}")
+    
     if func_name == "get_city":
-        get_weather()  # вызываем новую функцию get_weather
-    # elif func_name == "get_volume":  # добавьте это условие
-    #     set_volume()  # вызовите функцию set_volume
+        get_weather()  # вызываем функцию get_weather для получения погоды
     else:
-    # озвучка ответа из модели data_set
-        response = answer.replace(func_name, '').strip()
-        if response:  # проверка, что response не пустая строка
+        response = predicted_label.replace(func_name, '').strip()
+        if response:
             voice.speaker_silero(response)
         else:
-            exec(func_name + '()')  # для всех остальных функций просто их выполняем
+            exec(func_name + '()')
 
 #--------------------
 # Функция предназначена для сбора датасета, для последующего обучения командам (модельки)
@@ -155,35 +177,11 @@ def log_command_to_file(command):
 
 def recognize_wheel():
     print("Функция recognize_wheel вызвана!") 
-    #Приветствие пользователя при запуске
     voice.speaker_silero("Здравствуйте, сэр. Чем могу помочь?")
     print('Слушаем')
-    '''
-    Обучаем матрицу ИИ для распознавания команд ассистентом
-    и постоянно слушаем микрофон
-    '''
 
-    # Обучение матрицы на data_set модели
-    vectorizer = CountVectorizer()
-    vectors = vectorizer.fit_transform(list(words.data_set.keys()))
-
-    # Ваши метки
-    labels = list(words.data_set.values())
-
-    # Разделение на обучающий и тестовый наборы
-    X_train, X_test, y_train, y_test = train_test_split(vectors, labels, test_size=0.2, random_state=42)
-
-    # Обучение SGDClassifier
-    clf = SGDClassifier(loss='log_loss')
-    clf.fit(X_train, y_train)
-
-     # Оценка производительности модели
-    print("Качество классификации:", clf.score(X_test, y_test))
-
-    # постоянная прослушка микрофона
-    with sd.RawInputStream(samplerate=samplerate, blocksize = 8000, device=device[0], dtype='int16',
-                            channels=1, callback=callback):
-
+    with sd.RawInputStream(samplerate=samplerate, blocksize=8000, device=device[0], dtype='int16',
+                           channels=1, callback=callback):
         rec = vosk.KaldiRecognizer(model, samplerate)
         listen_for_command = False
         command_end_time = 0
@@ -191,29 +189,20 @@ def recognize_wheel():
         while True and int(os.getenv('MIC')):
             data = q.get()
             amplitude = calculate_amplitude(data)
-            # временно убираем вывод амплитуды
-            # print(f"Амплитуда: {amplitude}")  # Debugging line
-            #if amplitude > AMPLITUDE_THRESHOLD:
             if rec.AcceptWaveform(data):
                 data = json.loads(rec.Result())['text']
                 print(f'Я сказал: {data}')
 
-                # Если обнаружено ключевое слово и не прослушивается команда
                 if words.TRIGGERS.intersection(data.split()) and not listen_for_command:
-                    # очищаем очередь
                     while not q.empty():
                         q.get()
-                    # Начать прослушивание команды
                     listen_for_command = True
-                    command_end_time = time.time() + 15  # Продолжать прослушивание в течение 15 секунд
+                    command_end_time = time.time() + 15
 
-                # Если прослушивается команда
                 if listen_for_command:
-                    # Если время прослушивания команды истекло
                     if time.time() > command_end_time:
                         listen_for_command = False
                     else:
-                        # Распознать и выполнить команду
-                        recognize(data, vectorizer, clf)
+                        recognize(data)
 
     print('Микрофон отключен')

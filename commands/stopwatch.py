@@ -4,6 +4,7 @@ import pyaudio
 import threading
 import torch
 import json
+import voice
 
 class VoiceStopwatch:
     def __init__(self, model):
@@ -20,7 +21,7 @@ class VoiceStopwatch:
             raise Exception("Секундомер не был запущен")
         elapsed_time = time.time() - self.start_time
         self.start_time = None
-        speaker_silero(f"Прошло {elapsed_time} секунд")
+        voice.speaker_silero(f"Прошло {elapsed_time} секунд")
         return elapsed_time
 
     def listen_for_commands(self):
@@ -34,7 +35,7 @@ class VoiceStopwatch:
                 text = json.loads(self.rec.Result())['text']
                 if "старт" in text and self.start_time is None:
                     self.start()
-                    speaker_silero("Секундомер запущен")
+                    voice.speaker_silero("Секундомер запущен")
                 elif "стоп" in text and self.start_time is not None:
                     elapsed_time = self.stop()
                     stream.stop_stream()

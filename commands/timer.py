@@ -3,6 +3,8 @@ import vosk
 import pyaudio
 import threading
 import torch
+import voice
+import json
 
 class VoiceTimer:
     def __init__(self, model):
@@ -12,7 +14,7 @@ class VoiceTimer:
         self.model = model
 
     def ask_duration(self):
-        speaker_silero("На сколько секунд вы хотите установить таймер?")
+        voice.speaker_silero("На сколько секунд вы хотите установить таймер?")
 
     def start(self, duration):
         self.start_time = time.time()
@@ -23,7 +25,7 @@ class VoiceTimer:
     def _timer_thread(self):
         while time.time() < self.end_time:
             time.sleep(1)
-        speaker_silero("Таймер закончился")
+        voice.speaker_silero("Таймер закончился")
 
     def stop(self):
         if self.start_time is None:

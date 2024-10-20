@@ -1,6 +1,9 @@
-from PyQt6.QtWidgets import QWidget, QDialog, QVBoxLayout, QLabel, QLineEdit, QPushButton, QFileDialog, QMessageBox, QComboBox
-from voice_assistant_gui.settings_manager import add_exe_path, save_selected_voice, get_selected_voice
+from PyQt6.QtWidgets import QWidget, QDialog, QVBoxLayout, QSlider, QLabel, QLineEdit, QPushButton, QFileDialog, QMessageBox, QComboBox
+from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QIntValidator
+from voice_assistant_gui.settings_manager import add_exe_path, save_selected_voice, get_selected_voice, save_amplitude_threshold, load_amplitude_threshold
 from voice import speaker_silero
+
 
 class CustomMessageBox(QDialog):
     def __init__(self, title, message, parent=None):
@@ -266,7 +269,22 @@ class SettingsWindow(QWidget):
         self.choose_voice_button.clicked.connect(self.open_choose_voice_window)
         layout.addWidget(self.choose_voice_button)
 
+        self.amplitude_button = QPushButton("Шум микрофона", self)
+        self.amplitude_button.setStyleSheet(self.get_button_style())
+        self.amplitude_button.clicked.connect(self.open_amplitude_window)
+        layout.addWidget(self.amplitude_button)
+
         self.setLayout(layout)
+
+    def open_amplitude_window(self):
+        self.amplitude_window = AmplitudeWindow()  # Создаем окно с настройкой амплитуды
+        self.amplitude_window.show()  # Отображаем окно
+
+    def get_amplitude_threshold(self):
+        return load_amplitude_threshold()
+
+    def update_amplitude_threshold(self, value):
+        save_amplitude_threshold(value)
 
     def open_create_command_window(self):
         self.create_command_window = CreateCommandWindow()
@@ -275,6 +293,117 @@ class SettingsWindow(QWidget):
     def open_choose_voice_window(self):
         self.choose_voice_window = ChooseVoiceWindow()
         self.choose_voice_window.show()
+
+    def get_button_style(self):
+        return """
+        QPushButton {
+            background-color: #6969B3;  /* Синий цвет */
+            color: white;
+            padding: 10px;
+            font-size: 18px;
+            text-align: center;
+            border: none;
+            width: 200px;
+            height: 50px;
+            border-radius: 25px;
+        }
+        QPushButton:hover {
+            background-color: #7A7AC1;  /* Более светлый синий при наведении */
+        }
+        """
+
+class AmplitudeWindow(QDialog):
+    def __init__(self):
+        super().__init__()
+
+        self.setWindowTitle("Настройка амплитуды звука")
+        self.setGeometry(100, 100, 400, 200)
+        self.setStyleSheet("background-color: #25171A;")  # Основной фон окна
+
+        layout = QVBoxLayout()
+
+        # Лейбл для отображения текущего значения амплитуды
+        self.amplitude_label = QLabel("Порог шума микрофона")
+        self.amplitude_label.setStyleSheet("color: white; font-size: 16px;")
+        layout.addWidget(self.amplitude_label)
+
+        # Слайдер для настройки амплитуды
+        self.amplitude_slider = QSlider(Qt.Orientation.Horizontal)
+        self.amplitude_slider.setRange(0, 1000)  # Установите нужный диапазон
+        self.amplitude_slider.setValue(self.get_amplitude_threshold())
+        self.amplitude_slider.setStyleSheet("""
+            QSlider::groove:horizontal {
+                background: #444444;
+                height: 10px;
+            }
+            QSlider::handle:horizontal {
+                background: #6969B3;
+                border: 2px solid white;
+                width: 20px;
+                margin: -5px 0;
+                border-radius: 10px;
+            }
+        """)
+        self.amplitude_slider.valueChanged.connect(self.update_amplitude_threshold)
+        layout.addWidget(self.amplitude_slider)
+
+        # Лейбл для отображения текущего значения слайдера
+        self.amplitude_value_label = QLabel(str(self.get_amplitude_threshold()))
+        self.amplitude_value_label.setStyleSheet("color: white; font-size: 14px;")
+        self.amplitude_value_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self.amplitude_value_label)
+
+        # Подключаем изменение значения слайдера к отображению
+        self.amplitude_slider.valueChanged.connect(lambda value: self.amplitude_value_label.setText(str(value)))
+
+        # Поле для ручного ввода значения амплитуды
+        self.amplitude_input = QLineEdit(self)
+        self.amplitude_input.setText(str(self.get_amplitude_threshold()))
+        self.amplitude_input.setStyleSheet("""
+            QLineEdit {
+                background-color: #333333;
+                color: white;
+                padding: 5px;
+                font-size: 16px;
+                border-radius: 10px;
+            }
+        """)
+        self.amplitude_input.setValidator(QIntValidator(0, 1000))  # Ввод только чисел
+        layout.addWidget(self.amplitude_input)
+
+        # Обновляем значение слайдера при ручном вводе
+        self.amplitude_input.textChanged.connect(self.update_slider_from_input)
+
+        # Кнопка для сохранения амплитуды
+        self.save_button = QPushButton("Сохранить", self)
+        self.save_button.setStyleSheet(self.get_button_style())
+        self.save_button.clicked.connect(self.save_amplitude_threshold)
+        layout.addWidget(self.save_button)
+
+        self.setLayout(layout)
+
+    def update_slider_from_input(self):
+        """Обновляет положение слайдера в зависимости от введенного значения"""
+        try:
+            value = int(self.amplitude_input.text())
+            self.amplitude_slider.setValue(value)
+        except ValueError:
+            pass  # Игнорируем некорректный ввод
+
+    def get_amplitude_threshold(self):
+        return load_amplitude_threshold()
+
+    def update_amplitude_threshold(self, value):
+        """Обновляет значение амплитуды при изменении слайдера"""
+        self.amplitude_value_label.setText(str(value))
+        self.amplitude_input.setText(str(value))
+
+    def save_amplitude_threshold(self):
+        """Сохраняет текущее значение амплитуды"""
+        value = self.amplitude_slider.value()
+        save_amplitude_threshold(value)
+        show_custom_message("Успех", f"Значение амплитуды сохранено: {value}")
+        self.close()
 
     def get_button_style(self):
         return """

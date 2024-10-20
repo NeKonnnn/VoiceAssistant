@@ -44,3 +44,21 @@ def save_selected_voice(voice, settings_file="settings.json"):
 def get_selected_voice(settings_file="settings.json"):
     settings = load_settings(settings_file)
     return settings.get('selected_voice', 'baya')  # По умолчанию 'baya'
+
+# Функция для сохранения значения порога амплитуды
+def save_amplitude_threshold(value):
+    with open("settings.json", "r+") as file:
+        settings = json.load(file)
+        settings['amplitude_threshold'] = value
+        file.seek(0)
+        json.dump(settings, file, indent=4)
+        file.truncate()
+
+# Функция для загрузки значения порога амплитуды
+def load_amplitude_threshold():
+    try:
+        with open("settings.json", "r") as file:
+            settings = json.load(file)
+            return settings.get('amplitude_threshold', 300)  # Значение по умолчанию
+    except FileNotFoundError:
+        return 300  # Значение по умолчанию, если файл не найден
