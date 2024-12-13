@@ -13,15 +13,6 @@ def load_settings(settings_file):
             return json.load(file)
     return {}
 
-def save_selected_model(model, settings_file="settings.json"):
-    settings = load_settings(settings_file)
-    settings['selected_model'] = model
-    save_settings(settings_file, settings)
-
-def get_selected_model(settings_file="settings.json"):
-    settings = load_settings(settings_file)
-    return settings.get('selected_model', 'ChatGPT')
-
 # Функция для добавления пути до exe файла в настройки
 def add_exe_path(command_name, exe_path, settings_file="settings.json"):
     settings = load_settings(settings_file)

@@ -37,13 +37,11 @@ from commands.pc_work.windows import *
 from commands.backlog import add_to_backlog
 from commands.internet_search import *
 from commands.command_executor import execute_command
-from voice_assistant_gui.settings_manager import get_all_commands, load_amplitude_threshold, get_selected_model
+from voice_assistant_gui.settings_manager import get_all_commands, load_amplitude_threshold
 from configurations.times import *
 # from commands.timer import *         
 import voice
-# Импорт кастомных модулей, отвечающих за LLM
 import chatGPT
-# import llama1
 
 # from sklearn.model_selection import cross_val_score
 from sklearn.model_selection import train_test_split
@@ -52,9 +50,6 @@ from sklearn.linear_model import SGDClassifier
 
 AMPLITUDE_THRESHOLD = 100  # Экспериментальное значение
 SIMILARITY_THRESHOLD = 0.7  # Порог для косинусного сходства
-USE_LLAMA = int(os.getenv("USE_LLAMA", 0))  # Установим переменную окружения USE_LLAMA в 1 для использования LLaMA
-# Глобальный флаг для отслеживания первого запуска
-is_first_run = True
 
 triggered = False
 q = queue.Queue()
@@ -114,9 +109,8 @@ def recognize(data):
     Анализ распознанной речи и выполнение команды.
     """
     global triggered
-    command_found = False  # Добавляем флаг для отслеживания распознанной команды
-    print(f"Распознанная команда: {data}")
-
+    print(f"Распознанная команда: {data}")  # Логирование команды
+    
     # Пропускаем все, если длина распознанного текста меньше 7 символов
     if len(data) < 7:
         print("Команда слишком короткая, пропускаем.")
@@ -129,9 +123,16 @@ def recognize(data):
     trg = words.TRIGGERS.intersection(data.split())
     print(f"Триггеры: {trg}")
 
-    # Получаем выбранную модель из настроек
-    selected_model = get_selected_model()
-    print(f"Выбранная модель: {selected_model}")
+    # Если триггерное слово не обнаружено и ChatGPT отключен, пропускаем
+    if not trg and not triggered:
+        if not int(os.getenv("CHATGPT")):
+            print("Триггер не обнаружен и ChatGPT отключен, пропускаем.")
+            return
+        voice.speaker_gtts(chatGPT.start_dialogue(data))
+        return
+    else:
+        triggered = True
+        start_timeout()
 
     # Удаляем триггерные слова из команды
     data = preprocess_text(data)
@@ -147,41 +148,24 @@ def recognize(data):
         if command in data:
             print(f"Команда распознана как: {command}")
             execute_command(command)
-            command_found = True  # Устанавливаем флаг, если команда найдена и выполнена
-            triggered = False  # Сбрасываем триггер после выполнения команды
-            break  # Выходим из цикла, так как команда уже найдена
+            return
 
-    # Если команда не найдена среди локальных, продолжаем предсказание через классификатор
-    if not command_found:
-        command_vector = encode_text(data).reshape(1, -1)
-        predicted_label = clf.predict(command_vector)[0]
+    # Если команда не найдена, продолжаем предсказание через модель
+    command_vector = encode_text(data).reshape(1, -1)
+    predicted_label = clf.predict(command_vector)[0]
 
-        # Выполнение команды
-        func_name = predicted_label.split()[0]
-        print(f"Распознана команда: {func_name}")
-        
-        if func_name == "get_city":
-            get_weather()  # вызываем функцию get_weather для получения погоды
-            command_found = True  # Устанавливаем флаг, если команда найдена и выполнена
+    # Выполнение команды
+    func_name = predicted_label.split()[0]
+    print(f"Распознана команда: {func_name}")
+    
+    if func_name == "get_city":
+        get_weather()  # вызываем функцию get_weather для получения погоды
+    else:
+        response = predicted_label.replace(func_name, '').strip()
+        if response:
+            voice.speaker_silero(response)
         else:
-            response = predicted_label.replace(func_name, '').strip()
-            if response:
-                voice.speaker_silero(response)
-                command_found = True  # Устанавливаем флаг, если команда найдена и выполнена
-            else:
-                exec(func_name + '()')
-                command_found = True  # Устанавливаем флаг, если команда найдена и выполнена
-
-    # Если команда не найдена, отправляем запрос в нейронку
-    if not command_found:
-        print("Команда не найдена, отправляем запрос в нейронку.")
-        if selected_model == "LLaMA":
-            response = llama1.start_llama_dialogue(data)
-        else:
-            response = chatGPT.start_dialogue(data)
-        
-        print(f"Ответ от нейронки: {response}")
-        voice.speaker_gtts(response)
+            exec(func_name + '()')
 
 #--------------------
 # Функция предназначена для сбора датасета, для последующего обучения командам (модельки)
@@ -192,20 +176,8 @@ def log_command_to_file(command):
 #--------------------
 
 def recognize_wheel():
-    """
-    Основная функция для запуска голосового помощника.
-    """
-    global is_first_run  # Используем глобальный флаг
-
-    print("Функция recognize_wheel вызвана!")
-
-    # Приветствие только при первом запуске
-    if is_first_run:
-        voice.speaker_silero("Здравствуйте, сэр. Чем могу помочь?")
-        is_first_run = False
-    else:
-        print("Помощник уже запущен.")
-
+    print("Функция recognize_wheel вызвана!") 
+    voice.speaker_silero("Здравствуйте, сэр. Чем могу помочь?")
     print('Слушаем')
 
     with sd.RawInputStream(samplerate=samplerate, blocksize=8000, device=device[0], dtype='int16',
@@ -221,7 +193,6 @@ def recognize_wheel():
                 data = json.loads(rec.Result())['text']
                 print(f'Я сказал: {data}')
 
-                # Проверка на наличие триггера
                 if words.TRIGGERS.intersection(data.split()) and not listen_for_command:
                     while not q.empty():
                         q.get()

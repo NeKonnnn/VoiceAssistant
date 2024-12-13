@@ -3,7 +3,6 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QIntValidator
 from voice_assistant_gui.settings_manager import add_exe_path, save_selected_voice, get_selected_voice, save_amplitude_threshold, load_amplitude_threshold
 from voice import speaker_silero
-from voice_assistant_gui.settings_manager import save_selected_model, get_selected_model
 
 
 class CustomMessageBox(QDialog):
@@ -270,30 +269,12 @@ class SettingsWindow(QWidget):
         self.choose_voice_button.clicked.connect(self.open_choose_voice_window)
         layout.addWidget(self.choose_voice_button)
 
-        # Настройка выбора модели (ChatGPT или LLaMA)
-        self.model_label = QLabel("Выберите модель для ассистента:")
-        self.model_label.setStyleSheet("color: white; font-size: 16px;")
-        layout.addWidget(self.model_label)
-
-        self.model_combo = QComboBox(self)
-        self.model_combo.addItems(["ChatGPT", "LLaMA"])
-        self.model_combo.setCurrentText(get_selected_model())  # Устанавливаем сохранённую модель
-        self.model_combo.setStyleSheet(self.get_combo_box_style())
-        layout.addWidget(self.model_combo)
-
-        self.model_combo.currentTextChanged.connect(self.save_model_choice)
-
         self.amplitude_button = QPushButton("Шум микрофона", self)
         self.amplitude_button.setStyleSheet(self.get_button_style())
         self.amplitude_button.clicked.connect(self.open_amplitude_window)
         layout.addWidget(self.amplitude_button)
 
         self.setLayout(layout)
-
-    def save_model_choice(self):
-        # Сохраняем выбранную модель в settings.json
-        selected_model = self.model_combo.currentText()
-        save_selected_model(selected_model)
 
     def open_amplitude_window(self):
         self.amplitude_window = AmplitudeWindow()  # Создаем окно с настройкой амплитуды
@@ -328,29 +309,6 @@ class SettingsWindow(QWidget):
         }
         QPushButton:hover {
             background-color: #7A7AC1;  /* Более светлый синий при наведении */
-        }
-        """
-    
-    def get_combo_box_style(self):
-        return """
-        QComboBox {
-            background-color: #333333;
-            color: white;
-            padding: 5px;
-            font-size: 18px;
-            border-radius: 10px;
-        }
-        QComboBox:hover {
-            background-color: #555555;
-        }
-        QComboBox::drop-down {
-            border: none;
-        }
-        QComboBox QAbstractItemView {
-            background-color: #333333;
-            color: white;
-            selection-background-color: #555555;
-            selection-color: white;
         }
         """
 

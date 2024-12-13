@@ -3,8 +3,7 @@ import os
 from threading import Thread
 from PyQt6.QtWidgets import QApplication, QMainWindow, QPushButton, QVBoxLayout, QWidget, QDialog, QLabel
 from PyQt6.QtGui import QIcon, QMouseEvent
-from PyQt6.QtCore import QTimer, QSize, QRect, Qt, QPropertyAnimation, QThread, pyqtSignal
-import voice
+from PyQt6.QtCore import QTimer, QSize, QRect, Qt, QPropertyAnimation, QThread
 
 # Импортируем функции из вашего проекта
 from microphone_new import recognize_wheel  # Возврат на один уровень вверх к файлу microphone_new.py
@@ -103,19 +102,6 @@ class VoiceAssistantApp(QMainWindow):
         self.minimize_button.move(self.width() - 120, 5)
         self.maximize_button.move(self.width() - 80, 5)
 
-        # Кнопка для подключения нейронки
-        self.nn_button = QPushButton("Подключить нейронку", self)
-        self.nn_button.setIconSize(QSize(40, 40))
-        self.nn_button.setStyleSheet(self.blue_button_style())
-        self.nn_button.clicked.connect(self.toggle_neural_network)
-        self.nn_active = False  # Статус подключения нейронки
-        
-        # Метка для отображения статуса загрузки нейронки
-        self.loading_label = QLabel("", self)
-        self.loading_label.setStyleSheet("color: white; font-size: 14px;")  # Устанавливаем стиль текста
-        self.loading_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.loading_label.hide()  # Скрываем метку по умолчанию
-
         # Статус для активации/деактивации
         self.assistant_active = False
         self.chatgpt_active = False
@@ -134,6 +120,13 @@ class VoiceAssistantApp(QMainWindow):
         # self.status_indicator.setFixedSize(30, 30)
         # self.status_indicator.setStyleSheet("background-color: red; border-radius: 15px;")  # Красный, когда выключен
         # self.status_indicator.move(self.width() - 50, self.height() - 50)  # Расположение индикатора в нижнем правом углу
+
+        # Создаем кнопки для функционала, которые будут скрыты в боковом меню
+        self.chatgpt_button = QPushButton("ChatGPT", self)
+        self.chatgpt_button.setIcon(QIcon("icons/chatgpt.png"))
+        self.chatgpt_button.setIconSize(QSize(40, 40))
+        self.chatgpt_button.setStyleSheet(self.blue_button_style())
+        self.chatgpt_button.clicked.connect(self.toggle_chatgpt)
 
         self.refresh_button = QPushButton("Refresh Dialog", self)
         self.refresh_button.setIcon(QIcon("icons/refresh.png"))
@@ -164,8 +157,8 @@ class VoiceAssistantApp(QMainWindow):
 
         # Layout для кнопок, скрытых в боковом меню
         self.menu_layout = QVBoxLayout()
+        self.menu_layout.addWidget(self.chatgpt_button)
         self.menu_layout.addWidget(self.refresh_button)
-        self.menu_layout.addWidget(self.nn_button)
         self.menu_layout.addWidget(self.settings_button)
         self.menu_layout.addWidget(self.commands_button)
 
@@ -213,14 +206,6 @@ class VoiceAssistantApp(QMainWindow):
         """)
         self.assistant_button.move(self.width() // 2 - self.assistant_button.width() // 2,
                                    self.height() // 2 - self.assistant_button.height() // 2)
-        
-        self.nn_button.move(self.width() // 2 - self.nn_button.width() // 2,
-                    self.height() // 2 + self.assistant_button.height())
-        
-        self.loading_label.setFixedWidth(self.nn_button.width())
-        self.loading_label.move(self.width() // 2 - self.loading_label.width() // 2,
-                                self.height() // 2 + self.nn_button.height() + 10)
-
 
     def resize_menu(self):
         """Функция для изменения ширины меню в зависимости от ширины окна."""
@@ -265,6 +250,27 @@ class VoiceAssistantApp(QMainWindow):
     def stop_mic_animation(self):
         if self.wheel_mic_animation:
             self.wheel_mic_animation = None
+
+    # Запуск/остановка ChatGPT
+    def toggle_chatgpt(self):
+        if int(os.getenv('CHATGPT', '0')):
+            os.environ.update(CHATGPT='0')
+            self.chatgpt_button.setText("Connect to ChatGPT")
+            self.stop_gpt_animation()
+        elif not int(os.getenv('MIC', '0')):
+            return
+        else:
+            os.environ.update(CHATGPT='1')
+            self.animate_gpt()
+
+    def animate_gpt(self, frame_index=0):
+        frames = ['icons/chatgpt_frame1.png', 'icons/chatgpt_frame2.png']  # примеры кадров
+        self.chatgpt_button.setIcon(QIcon(frames[frame_index]))
+        self.wheel_gpt_animation = QTimer.singleShot(100, lambda: self.animate_gpt((frame_index + 1) % len(frames)))
+
+    def stop_gpt_animation(self):
+        if self.wheel_gpt_animation:
+            self.wheel_gpt_animation = None
 
     # Обновление диалога (очистка)
     def refresh_dialog(self):
@@ -368,58 +374,6 @@ class VoiceAssistantApp(QMainWindow):
         """Сброс позиции перетаскивания и изменения размеров"""
         self.drag_pos = None
         self.resizing = False
-
-    class NeuralNetworkLoaderThread(QThread):
-        loading_finished = pyqtSignal(str)  # Сигнал для завершения загрузки модели с ответом
-
-        def run(self):
-            # Узнаем выбранную модель из настроек
-            from voice_assistant_gui.settings_manager import get_selected_model
-            selected_model = get_selected_model()
-            if selected_model == "ChatGPT":
-                from chatGPT import start_dialogue as start_chatgpt_dialogue
-                response = start_chatgpt_dialogue("Привет!")
-            elif selected_model == "LLaMA":
-                from llama1 import start_llama_dialogue
-                response = start_llama_dialogue("Привет!")
-            else:
-                response = "Ошибка: модель не выбрана."
-            
-            # Отправляем сигнал о завершении загрузки
-            self.loading_finished.emit(response)
-
-    def toggle_neural_network(self):
-        """
-        Активация/деактивация нейронки (ChatGPT или LLaMA).
-        """
-        if self.nn_active:
-            self.nn_button.setText("Подключить нейронку")
-            self.loading_label.hide()
-            self.nn_active = False
-            print("Нейронка отключена")
-        else:
-            # Показать сообщение о загрузке
-            self.loading_label.setText("Подгружаю нейронку...")
-            self.loading_label.show()
-
-            # Создаем поток для загрузки модели
-            self.loader_thread = self.NeuralNetworkLoaderThread()
-            self.loader_thread.loading_finished.connect(self.on_neural_network_loaded)
-            self.loader_thread.start()
-
-            self.nn_button.setText("Выключить нейронку")
-            self.nn_active = True
-            print("Нейронка подключена")
-
-    def on_neural_network_loaded(self, response):
-        """
-        Обработчик завершения загрузки модели.
-        """
-        self.loading_label.setText("Нейронка подключена!")
-        self.loading_label.setStyleSheet("color: #00FF00; font-size: 14px;")  # Зеленый цвет текста
-        QTimer.singleShot(3000, self.loading_label.hide)  # Скрыть через 3 секунды
-        voice.speaker_silero("Нейронка активна")  # Приветствие после загрузки нейронки
-        print(f"Ответ нейронки: {response}")
 
     def toggle_assistant(self):
         """Метод для активации и деактивации ассистента."""
