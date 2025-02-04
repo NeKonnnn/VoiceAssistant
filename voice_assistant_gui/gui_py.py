@@ -3,26 +3,44 @@ import os
 from threading import Thread
 from PyQt6.QtWidgets import QApplication, QMainWindow, QPushButton, QVBoxLayout, QWidget, QDialog, QLabel
 from PyQt6.QtGui import QIcon, QMouseEvent
-from PyQt6.QtCore import QTimer, QSize, QRect, Qt, QPropertyAnimation, QThread, pyqtSignal
+from PyQt6.QtCore import QTimer, QSize, QRect, Qt, QPropertyAnimation, QThread, pyqtSignal, pyqtSlot
 import voice
-
-# Импортируем функции из вашего проекта
-from microphone_new import recognize_wheel  # Возврат на один уровень вверх к файлу microphone_new.py
+from PyQt6.QtCore import QMetaObject
+# Импортируем функции из проекта
+from microphone_new import recognize_wheel, set_nn_active  # Импорт функции распознавания
 from chatGPT import write_history, new_dialogue
-
-# Импортируем функцию для запуска команд
 from commands.command_executor import execute_command
-
-# Импортируем функции для работы с настройками
 from voice_assistant_gui.settings_window import SettingsWindow
-from voice_assistant_gui.settings_manager import add_exe_path, get_exe_path
+from voice_assistant_gui.settings_manager import add_exe_path, get_exe_path, get_selected_model, get_all_commands
+import multiprocessing
+from llama_utils import call_llama_via_subprocess
+
+multiprocessing.set_start_method("spawn", force=True)
+
+# Для вызова LLaMA через subprocess
+import subprocess
 
 class AssistantThread(QThread):
     """
-    Класс для запуска голосового ассистента в отдельном потоке с использованием QThread
+    Класс для запуска голосового ассистента в отдельном потоке с использованием QThread.
     """
     def run(self):
         recognize_wheel()  # Запускаем функцию распознавания
+
+class LlamaWorkerProcess(QThread):
+    """
+    Класс для вызова LLaMA через subprocess в отдельном потоке.
+    При запуске вызывается скрипт llama_worker.py и результат эмитируется через сигнал.
+    """
+    finished = pyqtSignal(str)
+
+    def __init__(self, prompt: str, parent=None):
+        super().__init__(parent)
+        self.prompt = prompt
+
+    def run(self):
+        response = call_llama_via_subprocess(self.prompt)
+        self.finished.emit(response)
 
 class VoiceAssistantApp(QMainWindow):
     def __init__(self):
@@ -32,27 +50,27 @@ class VoiceAssistantApp(QMainWindow):
         self.setWindowFlag(Qt.WindowType.FramelessWindowHint)
         self.setWindowTitle("Voice Assistant")
         self.setGeometry(100, 100, 800, 600)
-        self.setMinimumSize(300, 200)  # Устанавливаем минимальный размер окна
+        self.setMinimumSize(300, 200)
 
-        # Установка основного фона окна
-        self.setStyleSheet("background-color: #25171A;")  # Основной фон
+        # Основной фон окна
+        self.setStyleSheet("background-color: #25171A;")
 
-        # Полоса заголовка окна (панель управления окном)
+        # Полоса заголовка окна
         self.title_bar = QWidget(self)
         self.title_bar.setFixedHeight(40)
         self.title_bar.setStyleSheet("background-color: #333;")
 
-        # Логика для передвижения и изменения размера окна
+        # Логика для перемещения и изменения размера окна
         self.drag_pos = None
         self.resizing = False
 
-        # Кнопка для закрытия окна (X в кружочке)
+        # Кнопка для закрытия окна (X)
         self.close_button = QPushButton("X", self.title_bar)
         self.close_button.setFixedSize(30, 30)
         self.close_button.setStyleSheet("""
             QPushButton {
                 background-color: #ff5722;
-                border-radius: 15px;  /* Круглая кнопка */
+                border-radius: 15px;
                 color: white;
                 font-weight: bold;
                 border: none;
@@ -97,7 +115,7 @@ class VoiceAssistantApp(QMainWindow):
         """)
         self.maximize_button.clicked.connect(self.toggle_maximize_restore)
 
-        # Располагаем кнопки на панели заголовка
+        # Расположение кнопок на панели заголовка
         self.title_bar.move(0, 0)
         self.close_button.move(self.width() - 40, 5)
         self.minimize_button.move(self.width() - 120, 5)
@@ -109,32 +127,26 @@ class VoiceAssistantApp(QMainWindow):
         self.nn_button.setStyleSheet(self.blue_button_style())
         self.nn_button.clicked.connect(self.toggle_neural_network)
         self.nn_active = False  # Статус подключения нейронки
-        
+
         # Метка для отображения статуса загрузки нейронки
         self.loading_label = QLabel("", self)
-        self.loading_label.setStyleSheet("color: white; font-size: 14px;")  # Устанавливаем стиль текста
+        self.loading_label.setStyleSheet("color: white; font-size: 14px;")
         self.loading_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.loading_label.hide()  # Скрываем метку по умолчанию
+        self.loading_label.hide()
 
-        # Статус для активации/деактивации
+        # Статус активации ассистента
         self.assistant_active = False
         self.chatgpt_active = False
-        self.menu_open = False  # Статус открытия меню
+        self.menu_open = False
 
-        # Создаем центральную круглую кнопку для активации/деактивации голосового помощника
-        self.assistant_button = QPushButton(self)  # Убрали текст "Voice Assistant"
-        self.assistant_button.setIcon(QIcon("icons/microphone_off_red.png"))  # Иконка перечеркнутого микрофона
+        # Центральная кнопка для активации ассистента
+        self.assistant_button = QPushButton(self)
+        self.assistant_button.setIcon(QIcon("icons/microphone_off_red.png"))
         self.assistant_button.setIconSize(QSize(60, 60))
         self.assistant_button.setStyleSheet(self.round_button_style())
-        self.assistant_button.clicked.connect(self.toggle_assistant)  # Подключаем метод
+        self.assistant_button.clicked.connect(self.toggle_assistant)
 
-        # Для статуса
-        # # Индикатор состояния ассистента (красный - выключен, зеленый - активен)
-        # self.status_indicator = QWidget(self)
-        # self.status_indicator.setFixedSize(30, 30)
-        # self.status_indicator.setStyleSheet("background-color: red; border-radius: 15px;")  # Красный, когда выключен
-        # self.status_indicator.move(self.width() - 50, self.height() - 50)  # Расположение индикатора в нижнем правом углу
-
+        # Кнопки меню
         self.refresh_button = QPushButton("Refresh Dialog", self)
         self.refresh_button.setIcon(QIcon("icons/refresh.png"))
         self.refresh_button.setIconSize(QSize(40, 40))
@@ -153,7 +165,7 @@ class VoiceAssistantApp(QMainWindow):
         self.commands_button.setStyleSheet(self.blue_button_style())
         self.commands_button.clicked.connect(self.open_commands)
 
-        # Меню в виде 3 черточек (гамбургер-меню)
+        # Кнопка гамбургер-меню
         self.menu_button = QPushButton(self)
         self.menu_button.setIcon(QIcon("icons/menu.png"))
         self.menu_button.setIconSize(QSize(30, 30))
@@ -162,7 +174,7 @@ class VoiceAssistantApp(QMainWindow):
         self.menu_button.move(0, 0)
         self.menu_button.clicked.connect(self.toggle_menu)
 
-        # Layout для кнопок, скрытых в боковом меню
+        # Layout для меню
         self.menu_layout = QVBoxLayout()
         self.menu_layout.addWidget(self.refresh_button)
         self.menu_layout.addWidget(self.nn_button)
@@ -171,38 +183,35 @@ class VoiceAssistantApp(QMainWindow):
 
         self.menu_widget = QWidget(self)
         self.menu_widget.setLayout(self.menu_layout)
-        self.menu_widget.setGeometry(10, 60, 0, self.height())  # Меню будет изменять свою высоту в зависимости от окна
+        self.menu_widget.setGeometry(10, 60, 0, self.height())
         self.menu_widget.hide()
 
-        # Центрирование кнопки при изменении размера
+        # Центрирование кнопки при изменении размера окна
         self.centralize_button()
 
-        # Анимации для ассистента, ChatGPT и обновления
+        # Анимации (при необходимости)
         self.wheel_mic_animation = None
         self.wheel_gpt_animation = None
         self.wheel_refresh_animation = None
-        
 
     def resizeEvent(self, event):
         """Центрирование кнопки и изменение размеров меню при изменении размера окна."""
         self.centralize_button()
         self.resize_menu()
-        self.title_bar.resize(self.width(), 40)  # Изменение ширины заголовка при изменении размера окна
+        self.title_bar.resize(self.width(), 40)
         self.close_button.move(self.width() - 40, 5)
         self.minimize_button.move(self.width() - 120, 5)
         self.maximize_button.move(self.width() - 80, 5)
-        # для статуса кнопки
-        #  self.status_indicator.move(self.width() - 50, self.height() - 50)
 
     def centralize_button(self):
-        """Функция для центрирования кнопки голосового помощника и изменения её размера в зависимости от размеров экрана."""
-        button_size = min(self.width(), self.height()) // 4  # Размер кнопки = 1/4 от минимального размера окна
+        """Центрирование кнопки голосового ассистента и изменение её размера."""
+        button_size = min(self.width(), self.height()) // 4
         self.assistant_button.setFixedSize(button_size, button_size)
-        self.assistant_button.setIconSize(QSize(button_size // 2, button_size // 2))  # Размер иконки 1/2 от кнопки
+        self.assistant_button.setIconSize(QSize(button_size // 2, button_size // 2))
         self.assistant_button.setStyleSheet(f"""
             QPushButton {{
                 background-color: #533A7B;
-                border-radius: {button_size // 2}px;  /* Круглая форма */
+                border-radius: {button_size // 2}px;
                 color: white;
                 font-size: 16px;
                 font-weight: bold;
@@ -213,22 +222,19 @@ class VoiceAssistantApp(QMainWindow):
         """)
         self.assistant_button.move(self.width() // 2 - self.assistant_button.width() // 2,
                                    self.height() // 2 - self.assistant_button.height() // 2)
-        
         self.nn_button.move(self.width() // 2 - self.nn_button.width() // 2,
-                    self.height() // 2 + self.assistant_button.height())
-        
+                            self.height() // 2 + self.assistant_button.height())
         self.loading_label.setFixedWidth(self.nn_button.width())
         self.loading_label.move(self.width() // 2 - self.loading_label.width() // 2,
                                 self.height() // 2 + self.nn_button.height() + 10)
 
-
     def resize_menu(self):
-        """Функция для изменения ширины меню в зависимости от ширины окна."""
-        menu_width = min(self.width() // 4, 300)  # Меню занимает 1/4 ширины окна, но не больше 300px
-        self.menu_widget.setGeometry(10, 60, menu_width, self.height())  # Меню также увеличивает свою высоту
+        """Изменение ширины меню в зависимости от ширины окна."""
+        menu_width = min(self.width() // 4, 300)
+        self.menu_widget.setGeometry(10, 60, menu_width, self.height())
 
     def toggle_menu(self):
-        """Функция для открытия/закрытия шторки меню по клику."""
+        """Открытие/закрытие шторки меню по клику."""
         if self.menu_open:
             self.animate_menu_close()
         else:
@@ -237,28 +243,27 @@ class VoiceAssistantApp(QMainWindow):
     def animate_menu_open(self):
         """Анимация раскрытия меню."""
         self.menu_widget.show()
-        menu_width = min(self.width() // 4, 300)  # Меню занимает 1/4 ширины окна, но не больше 300px
+        menu_width = min(self.width() // 4, 300)
         self.animation = QPropertyAnimation(self.menu_widget, b"geometry")
-        self.animation.setDuration(300)  # Длительность анимации
+        self.animation.setDuration(300)
         self.animation.setStartValue(QRect(10, 60, 0, self.height()))
-        self.animation.setEndValue(QRect(10, 60, menu_width, self.height()))  # Раскрытие до ширины 1/4 экрана
+        self.animation.setEndValue(QRect(10, 60, menu_width, self.height()))
         self.animation.start()
         self.menu_open = True
 
     def animate_menu_close(self):
         """Анимация закрытия меню."""
-        menu_width = min(self.width() // 4, 300)  # Меню занимает 1/4 ширины окна, но не больше 300px
+        menu_width = min(self.width() // 4, 300)
         self.animation = QPropertyAnimation(self.menu_widget, b"geometry")
-        self.animation.setDuration(300)  # Длительность анимации
+        self.animation.setDuration(300)
         self.animation.setStartValue(QRect(10, 60, menu_width, self.height()))
-        self.animation.setEndValue(QRect(10, 60, 0, self.height()))  # Закрытие до ширины 0
-        self.animation.finished.connect(self.menu_widget.hide)  # Скрываем после анимации
+        self.animation.setEndValue(QRect(10, 60, 0, self.height()))
+        self.animation.finished.connect(self.menu_widget.hide)
         self.animation.start()
         self.menu_open = False
 
-    # Функция для анимации ассистента
     def animate_mic(self, frame_index=0):
-        frames = ['icons/microphone_frame1.png', 'icons/microphone_frame2.png']  # примеры кадров
+        frames = ['icons/microphone_frame1.png', 'icons/microphone_frame2.png']
         self.assistant_button.setIcon(QIcon(frames[frame_index]))
         self.wheel_mic_animation = QTimer.singleShot(100, lambda: self.animate_mic((frame_index + 1) % len(frames)))
 
@@ -266,51 +271,44 @@ class VoiceAssistantApp(QMainWindow):
         if self.wheel_mic_animation:
             self.wheel_mic_animation = None
 
-    # Обновление диалога (очистка)
     def refresh_dialog(self):
         new_dialogue()
         os.environ.update(NEW_DIALOGUE='1')
         self.refresh_button.setIcon(QIcon("icons/refresh.png"))
 
-    # Открытие настроек
     def open_settings(self):
         self.settings_window = SettingsWindow()
         self.settings_window.show()
 
-    # Открытие доступных команд
     def open_commands(self):
         dialog = QDialog(self)
         dialog.setWindowTitle("Available Commands")
         dialog.setGeometry(100, 100, 300, 200)
-        dialog.setStyleSheet("background-color: #98C1D9;")  # Устанавливаем фон окна команд
-
+        dialog.setStyleSheet("background-color: #98C1D9;")
         label = QLabel("List of available commands:\n\n- Command 1\n- Command 2\n- Command 3", dialog)
         layout = QVBoxLayout()
         layout.addWidget(label)
         dialog.setLayout(layout)
-
         dialog.exec()
 
-    # Стиль для круглой кнопки ассистента
     def round_button_style(self):
         return """
         QPushButton {
-            background-color: #533A7B;  /* Фиолетовый цвет */
+            background-color: #533A7B;
             border-radius: 75px;
             color: white;
             font-size: 16px;
             font-weight: bold;
         }
         QPushButton:hover {
-            background-color: #6A4B9A;  /* Более светлый фиолетовый при наведении */
+            background-color: #6A4B9A;
         }
         """
 
-    # Стиль для кнопок ChatGPT, Обновить диалог, Настройки, Команды
     def blue_button_style(self):
         return """
         QPushButton {
-            background-color: #6969B3;  /* Синий цвет */
+            background-color: #6969B3;
             color: white;
             padding: 10px;
             font-size: 18px;
@@ -321,41 +319,38 @@ class VoiceAssistantApp(QMainWindow):
             border-radius: 25px;
         }
         QPushButton:hover {
-            background-color: #7A7AC1;  /* Более светлый синий при наведении */
+            background-color: #7A7AC1;
         }
         """
 
-    # Стиль для кнопки гамбургер-меню
     def brown_button_style(self):
         return """
         QPushButton {
-            background-color: #4B244A;  /* Коричневый цвет */
+            background-color: #4B244A;
             color: white;
             font-size: 16px;
             font-weight: bold;
             border: none;
         }
         QPushButton:hover {
-            background-color: #6A356D;  /* Более светлый коричневый при наведении */
+            background-color: #6A356D;
         }
         """
 
     def toggle_maximize_restore(self):
-        """Функция для разворачивания и восстановления окна"""
+        """Разворачивание и восстановление окна."""
         if self.isMaximized():
             self.showNormal()
         else:
             self.showMaximized()
 
     def mousePressEvent(self, event: QMouseEvent):
-        """Функция для перетаскивания окна и изменения размеров"""
         if event.button() == Qt.MouseButton.LeftButton:
             self.drag_pos = event.globalPosition().toPoint()
             if event.position().x() > self.width() - 10 and event.position().y() > self.height() - 10:
-                self.resizing = True  # Начинаем изменять размер, если мышь находится в правом нижнем углу
+                self.resizing = True
 
     def mouseMoveEvent(self, event: QMouseEvent):
-        """Функция для перемещения окна или изменения его размеров"""
         if self.resizing:
             self.setGeometry(self.x(), self.y(), event.globalPosition().toPoint().x() - self.x(),
                              event.globalPosition().toPoint().y() - self.y())
@@ -365,28 +360,8 @@ class VoiceAssistantApp(QMainWindow):
             self.drag_pos = event.globalPosition().toPoint()
 
     def mouseReleaseEvent(self, event: QMouseEvent):
-        """Сброс позиции перетаскивания и изменения размеров"""
         self.drag_pos = None
         self.resizing = False
-
-    class NeuralNetworkLoaderThread(QThread):
-        loading_finished = pyqtSignal(str)  # Сигнал для завершения загрузки модели с ответом
-
-        def run(self):
-            # Узнаем выбранную модель из настроек
-            from voice_assistant_gui.settings_manager import get_selected_model
-            selected_model = get_selected_model()
-            if selected_model == "ChatGPT":
-                from chatGPT import start_dialogue as start_chatgpt_dialogue
-                response = start_chatgpt_dialogue("Привет!")
-            elif selected_model == "LLaMA":
-                from llama1 import start_llama_dialogue
-                response = start_llama_dialogue("Привет!")
-            else:
-                response = "Ошибка: модель не выбрана."
-            
-            # Отправляем сигнал о завершении загрузки
-            self.loading_finished.emit(response)
 
     def toggle_neural_network(self):
         """
@@ -398,73 +373,70 @@ class VoiceAssistantApp(QMainWindow):
             self.nn_active = False
             print("Нейронка отключена")
         else:
-            # Показать сообщение о загрузке
             self.loading_label.setText("Подгружаю нейронку...")
             self.loading_label.show()
-
-            # Создаем поток для загрузки модели
-            self.loader_thread = self.NeuralNetworkLoaderThread()
-            self.loader_thread.loading_finished.connect(self.on_neural_network_loaded)
-            self.loader_thread.start()
-
+            selected_model = get_selected_model()
+            print(f"[DEBUG] Выбранная модель: {selected_model}")
+            if selected_model == "LLaMA":
+                # Запускаем вызов LLaMA через отдельный процесс в QThread (через llama_worker.py)
+                self.llama_thread = LlamaWorkerProcess("Привет!")
+                self.llama_thread.finished.connect(self.on_llama_finished)
+                self.llama_thread.start()
+            elif selected_model == "ChatGPT":
+                from chatGPT import start_dialogue as start_chatgpt_dialogue
+                response = start_chatgpt_dialogue("Привет!")
+                self.loading_label.setText("Нейронка подключена!")
+                voice.speaker_silero("Нейронка активна")
+                print(f"[DEBUG] Ответ нейронки: {response}")
+            else:
+                self.loading_label.setText("Ошибка: модель не выбрана.")
             self.nn_button.setText("Выключить нейронку")
             self.nn_active = True
             print("Нейронка подключена")
 
-    def on_neural_network_loaded(self, response):
-        """
-        Обработчик завершения загрузки модели.
-        """
+    @pyqtSlot(str)
+    def on_llama_finished(self, response: str):
         self.loading_label.setText("Нейронка подключена!")
-        self.loading_label.setStyleSheet("color: #00FF00; font-size: 14px;")  # Зеленый цвет текста
-        QTimer.singleShot(3000, self.loading_label.hide)  # Скрыть через 3 секунды
-        voice.speaker_silero("Нейронка активна")  # Приветствие после загрузки нейронки
-        print(f"Ответ нейронки: {response}")
+        self.loading_label.setStyleSheet("color: #00FF00; font-size: 14px;")
+        QTimer.singleShot(3000, self.loading_label.hide)
+        voice.speaker_silero("Нейронка активна")
+        print(f"[DEBUG] Ответ нейронки: {response}")
 
     def toggle_assistant(self):
-        """Метод для активации и деактивации ассистента."""
+        """Активация и деактивация ассистента."""
         if self.assistant_active:
-            # Отключаем ассистент, меняем иконку на перечеркнутый микрофон
             self.assistant_button.setIcon(QIcon("icons/microphone_off_red.png"))
-            # для кнопки статуса
-            # self.status_indicator.setStyleSheet("background-color: red; border-radius: 15px;")
             self.statusBar().showMessage("Voice Assistant deactivated", 2000)
-            os.environ['MIC'] = '0'  # Отключаем ассистент через переменную окружения
-            self.assistant_thread.quit()  # Останавливаем поток ассистента
+            os.environ['MIC'] = '0'
+            self.assistant_thread.quit()
         else:
-            # Включаем ассистент, меняем иконку на обычный микрофон
             self.assistant_button.setIcon(QIcon("icons/microphone.png"))
-            # для кнопки статуса
-            # self.status_indicator.setStyleSheet("background-color: green; border-radius: 15px;")
             self.statusBar().showMessage("Voice Assistant activated", 2000)
-            os.environ['MIC'] = '1'  # Активируем ассистент через переменную окружения
-
-            # Запускаем ассистент в потоке QThread
+            os.environ['MIC'] = '1'
             self.assistant_thread = AssistantThread()
             self.assistant_thread.start()
-
-        # Инвертируем статус активности ассистента
         self.assistant_active = not self.assistant_active
 
     def run_assistant(self):
-        """Функция для запуска голосового ассистента."""
         try:
-            recognize_wheel()  # Запуск функции распознавания
+            recognize_wheel()
         except Exception as e:
             self.statusBar().showMessage(f"Error running assistant: {str(e)}", 2000)
 
 def main():
+    print("[DEBUG] Используется Python:", sys.executable)
     app = QApplication(sys.argv)
     main_window = VoiceAssistantApp()
+    print("[DEBUG] Загружаем LLaMA перед запуском GUI...")
+    from llama1 import get_model
+    get_model()  # Попытка предварительной загрузки модели
+    print("[DEBUG] LLaMA загружена, запускаем GUI")
     main_window.show()
     sys.exit(app.exec())
 
 if __name__ == "__main__":
+    multiprocessing.freeze_support()  # Для поддержки многопроцессности на Windows
     main()
-
-
-
-
 
 
 # C ANIMATION___________________________

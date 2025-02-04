@@ -7,6 +7,7 @@ import sounddevice as sd
 import soundfile as sf
 import time
 import microphone_new
+import re
 
 from voice_assistant_gui.settings_manager import get_selected_voice
 
@@ -84,7 +85,35 @@ def speaker_silero(text, speaker=None):
         print("Микрофон снова включен")
     except ValueError:
         raise
-    
+
+def speaker_silero_chunks(text, max_chunk_size=1000):
+    """
+    Делит текст на части, длина каждой не превышает max_chunk_size символов,
+    и озвучивает их последовательно.
+    """
+    # Разбиваем текст на предложения, используя регулярное выражение.
+    sentences = re.split(r'(?<=[.!?])\s+', text)
+    chunks = []
+    current_chunk = ""
+
+    for sentence in sentences:
+        # Если добавление очередного предложения не превысит лимит,
+        # то добавляем его к текущему фрагменту.
+        if len(current_chunk) + len(sentence) + 1 <= max_chunk_size:
+            current_chunk += sentence + " "
+        else:
+            if current_chunk:
+                chunks.append(current_chunk.strip())
+            current_chunk = sentence + " "
+    if current_chunk:
+        chunks.append(current_chunk.strip())
+
+    # Озвучиваем каждую часть отдельно.
+    for chunk in chunks:
+        print(f"Oзвучивание части: {chunk}")
+        speaker_silero(chunk)
+        # Можно добавить небольшую паузу между частями, если нужно:
+        time.sleep(0.5)
     
 
 # speaker_silero('привет')

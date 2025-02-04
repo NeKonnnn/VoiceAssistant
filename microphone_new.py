@@ -2,19 +2,20 @@ import json
 import queue
 import os
 import sys
+import time
 import numpy as np
 import torch
 import pickle
 import re
+import subprocess
 from transformers import AutoTokenizer, AutoModel
 from sklearn.metrics.pairwise import cosine_similarity
-
 from sklearn.feature_extraction.text import CountVectorizer     # pip install scikit-learn
 # from sklearn.linear_model import LogisticRegression
-import sounddevice as sd    #pip install sounddevice
-import vosk                 #pip install vosk
+import sounddevice as sd    # pip install sounddevice
+import vosk                 # pip install vosk
 
-#import кастомных (наших) либ
+# Импорт кастомных (наших) библиотек
 import words
 import configuration
 from commands.alarm import *
@@ -39,16 +40,16 @@ from commands.internet_search import *
 from commands.command_executor import execute_command
 from voice_assistant_gui.settings_manager import get_all_commands, load_amplitude_threshold, get_selected_model
 from configurations.times import *
-# from commands.timer import *         
+# from commands.timer import *
 import voice
 # Импорт кастомных модулей, отвечающих за LLM
 import chatGPT
-# import llama1
-
+from llama1 import *  # оставляем, если нужны другие функции из llama1.py
 # from sklearn.model_selection import cross_val_score
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, recall_score, roc_auc_score
 from sklearn.linear_model import SGDClassifier
+from llama_utils import call_llama_via_subprocess
 
 AMPLITUDE_THRESHOLD = 100  # Экспериментальное значение
 SIMILARITY_THRESHOLD = 0.7  # Порог для косинусного сходства
@@ -60,20 +61,24 @@ triggered = False
 q = queue.Queue()
 is_listening = True
 
-model = vosk.Model('model_small')        #голосовую модель vosk нужно поместить в папку с файлами проекта
-                                        #https://alphacephei.com/vosk/
-                                        #https://alphacephei.com/vosk/models
+model = vosk.Model('model_small')        # голосовую модель vosk нужно поместить в папку с файлами проекта
+                                        # https://alphacephei.com/vosk/
+                                        # https://alphacephei.com/vosk/models
 try:
     device = sd.default.device  # <--- по умолчанию
-                                #или -> sd.default.device = 1, 3 или python -m sounddevice просмотр 
-    samplerate = int(sd.query_devices(device[0], 'input')['default_samplerate'])  #получаем частоту микрофона
-except:
+                                # или -> sd.default.device = 1, 3 или python -m sounddevice (просмотр)
+    samplerate = int(sd.query_devices(device[0], 'input')['default_samplerate'])  # получаем частоту микрофона
+except Exception as e:
     voice.speaker_silero('Включи микрофон!')
     sys.exit(1)
 
 # Загрузка предобученной модели, токенизатора и классификатора
 with open("model/model.pkl", "rb") as f:
     tokenizer, bert_model, clf = pickle.load(f)
+
+def set_nn_active(state: bool):
+    global nn_active
+    nn_active = state
 
 def preprocess_text(text):
     """Предобработка текста для модели."""
@@ -110,78 +115,76 @@ def get_most_similar_command(input_text, known_commands):
     return most_similar_command, similarities[most_similar_idx]
 
 def recognize(data):
-    """
-    Анализ распознанной речи и выполнение команды.
-    """
-    global triggered
-    command_found = False  # Добавляем флаг для отслеживания распознанной команды
-    print(f"Распознанная команда: {data}")
+    global triggered, set_nn_active
+    print(f"Распознанная команда: '{data}'")
 
-    # Пропускаем все, если длина распознанного текста меньше 7 символов
+    # Если активна нейронка, сразу передаем запрос в нейронную сеть и выходим:
+    if set_nn_active:
+        prompt = data.strip()
+        if len(prompt) < 3:
+            print("Команда слишком короткая, пропускаем.")
+            return
+        print(f"[DEBUG] (NN active) Передача промпта в нейронку: '{prompt}'")
+        call_llama_via_subprocess(prompt)
+        return
+
+    # Если нейронка не активна – стандартная логика обработки:
     if len(data) < 7:
         print("Команда слишком короткая, пропускаем.")
         return
 
-    # Логика для записи распознанной команды в файл
     log_command_to_file(data)
-
-    # Проверяем триггерные слова
     trg = words.TRIGGERS.intersection(data.split())
     print(f"Триггеры: {trg}")
 
-    # Получаем выбранную модель из настроек
     selected_model = get_selected_model()
     print(f"Выбранная модель: {selected_model}")
 
-    # Удаляем триггерные слова из команды
-    data = preprocess_text(data)
-    data = ' '.join([word for word in data.split() if word not in words.TRIGGERS])
-    print(f"Команда после удаления триггеров: {data}")
+    cleaned = preprocess_text(data)
+    print(f"[DEBUG] После preprocess_text: '{cleaned}'")
+    prompt = ' '.join([word for word in cleaned.split() if word not in words.TRIGGERS])
+    print(f"[DEBUG] Промпт после удаления триггеров: '{prompt}'")
 
-    # Получаем все сохраненные команды
     all_commands = get_all_commands()
     print(f"Доступные команды: {all_commands}")
 
-    # Проверяем, если команда соответствует какой-то из сохраненных команд
+    command_found = False
     for command in all_commands:
-        if command in data:
+        if command in prompt:
             print(f"Команда распознана как: {command}")
             execute_command(command)
-            command_found = True  # Устанавливаем флаг, если команда найдена и выполнена
-            triggered = False  # Сбрасываем триггер после выполнения команды
-            break  # Выходим из цикла, так как команда уже найдена
+            command_found = True
+            triggered = False
+            break
 
-    # Если команда не найдена среди локальных, продолжаем предсказание через классификатор
     if not command_found:
-        command_vector = encode_text(data).reshape(1, -1)
+        command_vector = encode_text(prompt).reshape(1, -1)
         predicted_label = clf.predict(command_vector)[0]
-
-        # Выполнение команды
         func_name = predicted_label.split()[0]
-        print(f"Распознана команда: {func_name}")
-        
+        print(f"Распознана команда (классификатор): {func_name}")
         if func_name == "get_city":
-            get_weather()  # вызываем функцию get_weather для получения погоды
-            command_found = True  # Устанавливаем флаг, если команда найдена и выполнена
+            get_weather()
+            command_found = True
         else:
             response = predicted_label.replace(func_name, '').strip()
             if response:
                 voice.speaker_silero(response)
-                command_found = True  # Устанавливаем флаг, если команда найдена и выполнена
+                command_found = True
             else:
-                exec(func_name + '()')
-                command_found = True  # Устанавливаем флаг, если команда найдена и выполнена
+                try:
+                    exec(func_name + '()')
+                    command_found = True
+                except Exception as ex:
+                    print(f"Ошибка при выполнении команды: {ex}")
+                    command_found = True
 
-    # Если команда не найдена, отправляем запрос в нейронку
     if not command_found:
         print("Команда не найдена, отправляем запрос в нейронку.")
-        if selected_model == "LLaMA":
-            response = llama1.start_llama_dialogue(data)
+        print(f"[DEBUG] Промпт для LLaMA: '{prompt}'")
+        if prompt:
+            call_llama_via_subprocess(prompt)
         else:
-            response = chatGPT.start_dialogue(data)
-        
-        print(f"Ответ от нейронки: {response}")
-        voice.speaker_gtts(response)
+            print("[DEBUG] Промпт пустой, запрос не отправляется.")
 
 #--------------------
 # Функция предназначена для сбора датасета, для последующего обучения командам (модельки)
@@ -195,11 +198,11 @@ def recognize_wheel():
     """
     Основная функция для запуска голосового помощника.
     """
-    global is_first_run  # Используем глобальный флаг
+    global is_first_run
 
     print("Функция recognize_wheel вызвана!")
 
-    # Приветствие только при первом запуске
+    # Приветствие при первом запуске
     if is_first_run:
         voice.speaker_silero("Здравствуйте, сэр. Чем могу помочь?")
         is_first_run = False
@@ -214,15 +217,16 @@ def recognize_wheel():
         listen_for_command = False
         command_end_time = 0
 
-        while True and int(os.getenv('MIC')):
+        while True and int(os.getenv('MIC', '1')):
             data = q.get()
             amplitude = calculate_amplitude(data)
             if rec.AcceptWaveform(data):
-                data = json.loads(rec.Result())['text']
-                print(f'Я сказал: {data}')
+                result = json.loads(rec.Result())
+                data_text = result.get('text', '')
+                print(f'Я сказал: {data_text}')
 
-                # Проверка на наличие триггера
-                if words.TRIGGERS.intersection(data.split()) and not listen_for_command:
+                # Если обнаружены триггерные слова и мы ещё не в режиме прослушивания команды
+                if words.TRIGGERS.intersection(data_text.split()) and not listen_for_command:
                     while not q.empty():
                         q.get()
                     listen_for_command = True
@@ -232,6 +236,6 @@ def recognize_wheel():
                     if time.time() > command_end_time:
                         listen_for_command = False
                     else:
-                        recognize(data)
+                        recognize(data_text)
 
     print('Микрофон отключен')
